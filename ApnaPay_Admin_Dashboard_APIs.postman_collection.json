@@ -1,0 +1,350 @@
+{
+  "info": {
+    "_postman_id": "apnapay-admin-dashboard-apis-v1",
+    "name": "ApnaPay - Admin Dashboard APIs",
+    "description": "Postman collection for testing ApnaPay Admin Dashboard APIs. Provides real-time metrics across Platform Users, KYC Compliance, Transactions, Payments, Refunds, Wallet Balances, SIP Investments, Digital Land, and Disputes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
+        },
+        "description": "Checks if the ApnaPay backend server is online and running."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const res = pm.response.json();",
+              "pm.test(\"Backend server is healthy\", function () {",
+              "    pm.expect(res.success).to.be.true;",
+              "    pm.expect(res.message).to.include(\"healthy\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "1. Main Dashboard Overview",
+      "description": "Endpoints providing high-level aggregated platform KPIs across all 9 modules.",
+      "item": [
+        {
+          "name": "1.1 Get Admin Dashboard Full Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard"
+              ]
+            },
+            "description": "Fetches complete high-level platform analytics across Users, KYC, Transactions, Payments, Refunds, Wallets, SIP, Land, and Disputes."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const res = pm.response.json();",
+                  "pm.test(\"Response success is true\", function () {",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data).to.be.an(\"object\");",
+                  "});",
+                  "",
+                  "pm.test(\"Contains all 9 platform metric modules\", function () {",
+                  "    pm.expect(res.data).to.have.property(\"users\");",
+                  "    pm.expect(res.data).to.have.property(\"kyc\");",
+                  "    pm.expect(res.data).to.have.property(\"transactions\");",
+                  "    pm.expect(res.data).to.have.property(\"payments\");",
+                  "    pm.expect(res.data).to.have.property(\"refunds\");",
+                  "    pm.expect(res.data).to.have.property(\"wallet\");",
+                  "    pm.expect(res.data).to.have.property(\"sip\");",
+                  "    pm.expect(res.data).to.have.property(\"digital_land\");",
+                  "    pm.expect(res.data).to.have.property(\"complaints\");",
+                  "});",
+                  "",
+                  "pm.test(\"Metrics values are valid numbers\", function () {",
+                  "    pm.expect(res.data.users.total).to.be.a(\"number\");",
+                  "    pm.expect(res.data.transactions.total).to.be.a(\"number\");",
+                  "    pm.expect(res.data.payments.total_amount).to.be.a(\"number\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "1.2 Get Dashboard Summary (Alias)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard",
+                "summary"
+              ]
+            },
+            "description": "Alternative alias endpoint for dashboard summary overview."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const res = pm.response.json();",
+                  "pm.test(\"Summary response is valid\", function () {",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data.users).to.be.an(\"object\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. User Analytics",
+      "description": "Breakdown of user registrations, active status, blocked accounts, and recent signups.",
+      "item": [
+        {
+          "name": "2.1 Get User Statistics & Recent Signups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard",
+                "users"
+              ]
+            },
+            "description": "Fetches user metrics (total, active, blocked) along with the 5 most recently registered users."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const res = pm.response.json();",
+                  "pm.test(\"User metrics returned properly\", function () {",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data.total_users).to.be.a(\"number\");",
+                  "    pm.expect(res.data.active_users).to.be.a(\"number\");",
+                  "    pm.expect(res.data.blocked_users).to.be.a(\"number\");",
+                  "    pm.expect(Array.isArray(res.data.recent_users)).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. KYC & Compliance Analytics",
+      "description": "Compliance overview of user KYC verification statuses.",
+      "item": [
+        {
+          "name": "3.1 Get KYC Verification Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard/kyc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard",
+                "kyc"
+              ]
+            },
+            "description": "Fetches KYC metrics including verified, pending review, and rejected submissions."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const res = pm.response.json();",
+                  "pm.test(\"KYC metrics returned properly\", function () {",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data.verified).to.be.a(\"number\");",
+                  "    pm.expect(res.data.pending).to.be.a(\"number\");",
+                  "    pm.expect(res.data.rejected).to.be.a(\"number\");",
+                  "    pm.expect(res.data.total_submitted).to.be.a(\"number\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Transaction & Payment Analytics",
+      "description": "Detailed performance indicators of payment processing and transaction success rates.",
+      "item": [
+        {
+          "name": "4.1 Get Transaction Metrics & Success Rate",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard",
+                "transactions"
+              ]
+            },
+            "description": "Fetches total transactions, success vs failure counts, calculated success rate percentage, and total payment volume processed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const res = pm.response.json();",
+                  "pm.test(\"Transaction metrics returned properly\", function () {",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data.total_transactions).to.be.a(\"number\");",
+                  "    pm.expect(res.data.successful).to.be.a(\"number\");",
+                  "    pm.expect(res.data.failed).to.be.a(\"number\");",
+                  "    pm.expect(res.data.success_rate).to.be.a(\"string\");",
+                  "    pm.expect(res.data.total_payment_volume).to.be.a(\"number\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Financial & Revenue Analytics",
+      "description": "Financial overview of payment volume, refunds, system wallet float, and investments.",
+      "item": [
+        {
+          "name": "5.1 Get Financial Overview & Net Processed Volume",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard/financials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard",
+                "financials"
+              ]
+            },
+            "description": "Fetches total payments volume, total refunds volume, wallet float, SIP investment volume, and net processed volume."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const res = pm.response.json();",
+                  "pm.test(\"Financial metrics returned properly\", function () {",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data.total_payment_volume).to.be.a(\"number\");",
+                  "    pm.expect(res.data.total_refund_volume).to.be.a(\"number\");",
+                  "    pm.expect(res.data.total_wallet_balance).to.be.a(\"number\");",
+                  "    pm.expect(res.data.total_sip_investment).to.be.a(\"number\");",
+                  "    pm.expect(res.data.net_processed_volume).to.be.a(\"number\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

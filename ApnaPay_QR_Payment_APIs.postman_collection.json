@@ -1,0 +1,992 @@
+{
+	"info": {
+		"_postman_id": "e9b2c3d4-8f7a-4a1b-9c2d-5e6f7a8b9c0d",
+		"name": "ApnaPay - QR Payment APIs",
+		"description": "Complete Postman Collection for ApnaPay QR Payments:\n1. `qr_codes` (Generate and scan static/dynamic QR codes)\n2. `qr_payment_requests` (Create, view, and cancel payment requests)\n3. `qr_transactions` (Process payments against requests)\n\n### Sequential Flow (Run top-to-bottom):\n- **Step 1:** Generate Static/Dynamic QR Code\n- **Step 2:** Create Request & Pay (Happy Path)\n- **Step 3:** Create & Cancel Flow (Cancellation Path)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "0. Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/health",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"health"
+					]
+				},
+				"description": "Check if ApnaPay backend server is alive and running properly."
+			},
+			"response": [
+				{
+					"name": "Health Check Success",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"health"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"success\": true,\n    \"message\": \"Backend is healthy\"\n}"
+				}
+			]
+		},
+		{
+			"name": "1. QR Code Generation & Scanning",
+			"description": "APIs to create and scan static/dynamic QR codes.",
+			"item": [
+				{
+					"name": "1.1 Create Static QR",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const res = pm.response.json();",
+									"if (res.data && (res.data.qr_reference || res.data.public_id)) {",
+									"    const ref = res.data.qr_reference || res.data.public_id;",
+									"    pm.collectionVariables.set(\"staticQrReference\", ref);",
+									"    pm.collectionVariables.set(\"qrReference\", ref);",
+									"    console.log(\"Saved staticQrReference:\", ref);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"qr_type\": \"static\",\n    \"title\": \"Store Counter QR\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/qr/create",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"create"
+							]
+						},
+						"description": "Generates a Static QR code without a pre-set amount. Saves reference into `{{staticQrReference}}`."
+					},
+					"response": [
+						{
+							"name": "Static QR Created",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"qr_type\": \"static\",\n    \"title\": \"Store Counter QR\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/qr/create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"create"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"QR created successfully\",\n    \"data\": {\n        \"id\": 1,\n        \"public_id\": \"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d\",\n        \"qr_reference\": \"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d\",\n        \"qr_type\": \"static\",\n        \"amount\": null,\n        \"qr_image\": \"data:image/png;base64,...\",\n        \"payment_url\": \"http://localhost:5173/pay/a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d\"\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "1.2 Create Dynamic QR (Fixed Amount)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const res = pm.response.json();",
+									"if (res.data && (res.data.qr_reference || res.data.public_id)) {",
+									"    const ref = res.data.qr_reference || res.data.public_id;",
+									"    pm.collectionVariables.set(\"dynamicQrReference\", ref);",
+									"    console.log(\"Saved dynamicQrReference:\", ref);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"qr_type\": \"dynamic\",\n    \"title\": \"Bill Payment #8892\",\n    \"amount\": 499.00\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/qr/create",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"create"
+							]
+						},
+						"description": "Generates a Dynamic QR code with a mandatory fixed amount (e.g. 499.00). Saves into `{{dynamicQrReference}}`."
+					},
+					"response": [
+						{
+							"name": "Dynamic QR Created",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"qr_type\": \"dynamic\",\n    \"title\": \"Bill Payment #8892\",\n    \"amount\": 499.00\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/qr/create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"create"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"QR created successfully\",\n    \"data\": {\n        \"id\": 2,\n        \"public_id\": \"d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a\",\n        \"qr_reference\": \"d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a\",\n        \"qr_type\": \"dynamic\",\n        \"amount\": 499,\n        \"qr_image\": \"data:image/png;base64,...\",\n        \"payment_url\": \"http://localhost:5173/pay/d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a\"\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "1.3 Get QR Details / Scan QR",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/qr/{{staticQrReference}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"{{staticQrReference}}"
+							]
+						},
+						"description": "Simulates scanning the QR code. Uses `{{staticQrReference}}`."
+					},
+					"response": [
+						{
+							"name": "QR Scanned Successfully",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/qr/a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"data\": {\n        \"id\": 1,\n        \"public_id\": \"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d\",\n        \"qr_reference\": \"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d\",\n        \"qr_type\": \"static\",\n        \"fixed_amount\": null,\n        \"purpose\": \"Store Counter QR\",\n        \"status\": \"active\",\n        \"expires_at\": null\n    }\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "2. QR Payment Flow (Create & Pay)",
+			"description": "Complete flow: Create a payment request and successfully pay it.",
+			"item": [
+				{
+					"name": "2.1 Create Request (Static QR)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const res = pm.response.json();",
+									"if (res.data && res.data.reference_id) {",
+									"    pm.collectionVariables.set(\"paymentReferenceId\", res.data.reference_id);",
+									"    console.log(\"Saved paymentReferenceId:\", res.data.reference_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 150.00,\n    \"payer_user_id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/qr/{{staticQrReference}}/payment-request",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"{{staticQrReference}}",
+								"payment-request"
+							]
+						},
+						"description": "Creates a pending payment request for Static QR. Auto-saves `reference_id` to `{{paymentReferenceId}}`."
+					},
+					"response": [
+						{
+							"name": "Payment Request Created",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"amount\": 150.00,\n    \"payer_user_id\": 1\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/qr/a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d/payment-request",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+										"payment-request"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"QR payment request created successfully\",\n    \"data\": {\n        \"id\": 1,\n        \"qr_id\": 1,\n        \"qr_reference\": \"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d\",\n        \"payer_user_id\": 1,\n        \"amount\": 150,\n        \"status\": \"pending\",\n        \"reference_id\": \"b9f7a8c3-4d2e-4f1a-8c5d-6e7f8a9b0c1d\"\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "2.2 Pay Payment Request (Success)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const res = pm.response.json();",
+									"if (res.data && res.data.transaction_reference) {",
+									"    pm.collectionVariables.set(\"transactionReference\", res.data.transaction_reference);",
+									"    console.log(\"Saved transactionReference:\", res.data.transaction_reference);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"payer_user_id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/qr/requests/{{paymentReferenceId}}/pay",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"requests",
+								"{{paymentReferenceId}}",
+								"pay"
+							]
+						},
+						"description": "Pays the active pending request `{{paymentReferenceId}}`. Inserts a row in `qr_transactions` and updates `qr_payment_requests` to 'paid'."
+					},
+					"response": [
+						{
+							"name": "Payment Processed Successfully",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"payer_user_id\": 1\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/qr/requests/b9f7a8c3-4d2e-4f1a-8c5d-6e7f8a9b0c1d/pay",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"requests",
+										"b9f7a8c3-4d2e-4f1a-8c5d-6e7f8a9b0c1d",
+										"pay"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"QR payment processed successfully\",\n    \"data\": {\n        \"transaction_id\": 1,\n        \"transaction_reference\": \"TXN-A1B2C3D4E5F6G7H8\",\n        \"request_id\": 1,\n        \"reference_id\": \"b9f7a8c3-4d2e-4f1a-8c5d-6e7f8a9b0c1d\",\n        \"amount\": 150,\n        \"status\": \"success\",\n        \"payment_request_status\": \"paid\"\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "2.3 Get Payment Request & Transaction Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/qr/requests/{{paymentReferenceId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"requests",
+								"{{paymentReferenceId}}"
+							]
+						},
+						"description": "Fetches request details from `qr_payment_requests` joined with `qr_codes` and `qr_transactions`. Shows 'paid' status and transaction record."
+					},
+					"response": [
+						{
+							"name": "Request Status Details",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/qr/requests/b9f7a8c3-4d2e-4f1a-8c5d-6e7f8a9b0c1d",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"requests",
+										"b9f7a8c3-4d2e-4f1a-8c5d-6e7f8a9b0c1d"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"data\": {\n        \"request_id\": 1,\n        \"reference_id\": \"b9f7a8c3-4d2e-4f1a-8c5d-6e7f8a9b0c1d\",\n        \"payer_user_id\": 1,\n        \"amount\": 150,\n        \"status\": \"paid\",\n        \"created_at\": \"2026-11-05T09:15:00.000Z\",\n        \"qr\": {\n            \"id\": 1,\n            \"reference\": \"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d\",\n            \"type\": \"static\",\n            \"purpose\": \"Store Counter QR\"\n        },\n        \"transaction\": {\n            \"id\": 1,\n            \"reference\": \"TXN-A1B2C3D4E5F6G7H8\",\n            \"status\": \"success\",\n            \"created_at\": \"2026-11-05T09:16:00.000Z\"\n        }\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "2.4 Create Request (Dynamic QR - Fixed Amount)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const res = pm.response.json();",
+									"if (res.data && res.data.reference_id) {",
+									"    pm.collectionVariables.set(\"paymentReferenceId\", res.data.reference_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 499.00,\n    \"payer_user_id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/qr/{{dynamicQrReference}}/payment-request",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"{{dynamicQrReference}}",
+								"payment-request"
+							]
+						},
+						"description": "Creates payment request for Dynamic QR (`{{dynamicQrReference}}`). Amount is 499.00."
+					},
+					"response": [
+						{
+							"name": "Dynamic Request Created",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"amount\": 499.00,\n    \"payer_user_id\": 1\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/qr/d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a/payment-request",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a",
+										"payment-request"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"QR payment request created successfully\",\n    \"data\": {\n        \"id\": 2,\n        \"qr_id\": 2,\n        \"qr_reference\": \"d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a\",\n        \"payer_user_id\": 1,\n        \"amount\": 499,\n        \"status\": \"pending\",\n        \"reference_id\": \"c8e6d5b4-3a2f-1e0d-9c8b-7a6f5e4d3c2b\"\n    }\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "3. Cancellation Flow (Cancel & Verify)",
+			"description": "Flow to test cancellation of a pending request and verify it cannot be paid.",
+			"item": [
+				{
+					"name": "3.1 Create Request (To Be Cancelled)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const res = pm.response.json();",
+									"if (res.data && res.data.reference_id) {",
+									"    pm.collectionVariables.set(\"cancelPaymentReferenceId\", res.data.reference_id);",
+									"    console.log(\"Saved cancelPaymentReferenceId:\", res.data.reference_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 75.00,\n    \"payer_user_id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/qr/{{staticQrReference}}/payment-request",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"{{staticQrReference}}",
+								"payment-request"
+							]
+						},
+						"description": "Creates a fresh pending request specifically to demonstrate cancellation. Saves into `{{cancelPaymentReferenceId}}`."
+					},
+					"response": [
+						{
+							"name": "Pending Request Created",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"amount\": 75.00,\n    \"payer_user_id\": 1\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/qr/a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d/payment-request",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+										"payment-request"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"QR payment request created successfully\",\n    \"data\": {\n        \"id\": 3,\n        \"qr_id\": 1,\n        \"qr_reference\": \"a7b3c2d1-4e5f-6a7b-8c9d-0e1f2a3b4c5d\",\n        \"payer_user_id\": 1,\n        \"amount\": 75,\n        \"status\": \"pending\",\n        \"reference_id\": \"d7e8f9a0-1b2c-3d4e-5f6a-7b8c9d0e1f2a\"\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "3.2 Cancel Payment Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/qr/requests/{{cancelPaymentReferenceId}}/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"requests",
+								"{{cancelPaymentReferenceId}}",
+								"cancel"
+							]
+						},
+						"description": "Cancels the pending request `{{cancelPaymentReferenceId}}`."
+					},
+					"response": [
+						{
+							"name": "Request Cancelled Successfully",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/qr/requests/d7e8f9a0-1b2c-3d4e-5f6a-7b8c9d0e1f2a/cancel",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"requests",
+										"d7e8f9a0-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+										"cancel"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"QR payment request cancelled successfully\",\n    \"reference_id\": \"d7e8f9a0-1b2c-3d4e-5f6a-7b8c9d0e1f2a\",\n    \"status\": \"cancelled\"\n}"
+						}
+					]
+				},
+				{
+					"name": "3.3 Try Paying Cancelled Request (Expect 400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"const res = pm.response.json();",
+									"pm.test(\"Correct error message for cancelled request\", function () {",
+									"    pm.expect(res.message).to.include(\"cancelled\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"payer_user_id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/qr/requests/{{cancelPaymentReferenceId}}/pay",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"qr",
+								"requests",
+								"{{cancelPaymentReferenceId}}",
+								"pay"
+							]
+						},
+						"description": "Demonstrates security validation: attempting to pay a cancelled request returns 400 Bad Request with 'Cannot pay request with status cancelled'."
+					},
+					"response": [
+						{
+							"name": "Cannot Pay Cancelled Request",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"payer_user_id\": 1\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/qr/requests/d7e8f9a0-1b2c-3d4e-5f6a-7b8c9d0e1f2a/pay",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"qr",
+										"requests",
+										"d7e8f9a0-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+										"pay"
+									]
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": false,\n    \"message\": \"Cannot pay request with status 'cancelled'\"\n}"
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "staticQrReference",
+			"value": "placeholder-static-uuid",
+			"type": "string"
+		},
+		{
+			"key": "dynamicQrReference",
+			"value": "placeholder-dynamic-uuid",
+			"type": "string"
+		},
+		{
+			"key": "qrReference",
+			"value": "placeholder-static-uuid",
+			"type": "string"
+		},
+		{
+			"key": "paymentReferenceId",
+			"value": "placeholder-ref-uuid",
+			"type": "string"
+		},
+		{
+			"key": "cancelPaymentReferenceId",
+			"value": "placeholder-cancel-uuid",
+			"type": "string"
+		},
+		{
+			"key": "transactionReference",
+			"value": "placeholder-txn-ref",
+			"type": "string"
+		}
+	]
+}
