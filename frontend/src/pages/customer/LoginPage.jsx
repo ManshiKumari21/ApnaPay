@@ -20,23 +20,37 @@ const DEFAULT_COOLDOWN_SECONDS = 60;
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
 
-  // 1. Three input fields: Phone, Email, OTP
+  // Redirect to dashboard (or intended protected route) if already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      const destination = location.state?.from?.pathname || '/app';
+      navigate(destination, { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate, location.state]);
+
+  // 1. Controlled input fields: Phone, Email, OTP (strictly empty on load)
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
-  const [rememberMe, setRememberMe] = useState(() => {
-    return localStorage.getItem('apnapay_remember_login') === 'true';
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // User interaction tracking (validation feedback only appears after interaction or submit)
+  const [touched, setTouched] = useState({
+    phone: false,
+    email: false,
+    otp: false
   });
 
-  // Load saved credentials if remembered
+  // Clean up any previously saved autofill items from localStorage on mount
   useEffect(() => {
-    if (localStorage.getItem('apnapay_remember_login') === 'true') {
-      const savedPhone = localStorage.getItem('apnapay_saved_phone');
-      const savedEmail = localStorage.getItem('apnapay_saved_email');
-      if (savedPhone) setPhone(savedPhone);
-      if (savedEmail) setEmail(savedEmail);
+    try {
+      localStorage.removeItem('apnapay_saved_phone');
+      localStorage.removeItem('apnapay_saved_email');
+      localStorage.removeItem('apnapay_remember_login');
+    } catch {
+      // Ignore if localStorage unavailable
     }
   }, []);
 
@@ -82,25 +96,91 @@ const LoginPage = () => {
 
   // Field 1: Phone number change (numeric digits only, max 10)
   const handlePhoneChange = (e) => {
-    const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
-    setPhone(digitsOnly);
-    if (errors.phone) setErrors((prev) => ({ ...prev, phone: '' }));
+    const raw = e.target.value.replace(/\D/g, '');
+    const cleanPhone = raw.length > 10 && (raw.startsWith('91') || raw.length === 12)
+      ? raw.slice(-10)
+      : raw.slice(0, 10);
+    setPhone(cleanPhone);
+    setTouched((prev) => ({ ...prev, phone: true }));
+
+    // If 10 digits entered, check if valid; if not valid yet, clear previous error until blur/submit
+    if (cleanPhone.length === 10) {
+      if (INDIAN_PHONE_REGEX.test(cleanPhone)) {
+        setErrors((prev) => ({ ...prev, phone: '' }));
+      } else {
+        setErrors((prev) => ({ ...prev, phone: 'Mobile number must start with 6, 7, 8, or 9.' }));
+      }
+    } else if (cleanPhone.length === 0) {
+      setErrors((prev) => ({ ...prev, phone: '' }));
+    } else if (errors.phone) {
+      setErrors((prev) => ({ ...prev, phone: '' }));
+    }
+    setGlobalError('');
+  };
+
+  const handlePhoneBlur = () => {
+    setTouched((prev) => ({ ...prev, phone: true }));
+    if (phone.length > 0 && (phone.length !== 10 || !INDIAN_PHONE_REGEX.test(phone))) {
+      setErrors((prev) => ({ ...prev, phone: 'Please enter a valid 10-digit Indian mobile number.' }));
+    }
+  };
+
+  const handlePhonePaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '');
+    const cleanPhone = pasted.length > 10 ? pasted.slice(-10) : pasted.slice(0, 10);
+    setPhone(cleanPhone);
+    setTouched((prev) => ({ ...prev, phone: true }));
+    if (cleanPhone.length === 10 && INDIAN_PHONE_REGEX.test(cleanPhone)) {
+      setErrors((prev) => ({ ...prev, phone: '' }));
+    }
     setGlobalError('');
   };
 
   // Field 2: Email address change
   const handleEmailChange = (e) => {
-    setEmail(e.target.value);
-    if (errors.email) setErrors((prev) => ({ ...prev, email: '' }));
+    const val = e.target.value;
+    setEmail(val);
+    setTouched((prev) => ({ ...prev, email: true }));
+
+    if (val.trim() === '') {
+      setErrors((prev) => ({ ...prev, email: '' }));
+    } else if (EMAIL_REGEX.test(val.trim().toLowerCase())) {
+      setErrors((prev) => ({ ...prev, email: '' }));
+    } else if (errors.email) {
+      setErrors((prev) => ({ ...prev, email: '' }));
+    }
     setGlobalError('');
+  };
+
+  const handleEmailBlur = () => {
+    setTouched((prev) => ({ ...prev, email: true }));
+    const trimmed = email.trim();
+    if (trimmed.length > 0 && !EMAIL_REGEX.test(trimmed.toLowerCase())) {
+      setErrors((prev) => ({ ...prev, email: 'Please enter a valid email address format.' }));
+    }
   };
 
   // Field 3: OTP change (numeric digits only, max 6)
   const handleOtpChange = (e) => {
     const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 6);
     setOtp(digitsOnly);
-    if (errors.otp) setErrors((prev) => ({ ...prev, otp: '' }));
+    setTouched((prev) => ({ ...prev, otp: true }));
+    if (digitsOnly.length === 6) {
+      setErrors((prev) => ({ ...prev, otp: '' }));
+    } else if (digitsOnly.length === 0) {
+      setErrors((prev) => ({ ...prev, otp: '' }));
+    } else if (errors.otp) {
+      setErrors((prev) => ({ ...prev, otp: '' }));
+    }
     setGlobalError('');
+  };
+
+  const handleOtpBlur = () => {
+    setTouched((prev) => ({ ...prev, otp: true }));
+    if (otp.length > 0 && otp.length !== 6) {
+      setErrors((prev) => ({ ...prev, otp: 'Please enter a valid 6-digit OTP.' }));
+    }
   };
 
   // Support pasting full 6-digit OTP
@@ -108,23 +188,36 @@ const LoginPage = () => {
     e.preventDefault();
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
     setOtp(pasted);
-    if (errors.otp) setErrors((prev) => ({ ...prev, otp: '' }));
+    setTouched((prev) => ({ ...prev, otp: true }));
+    if (pasted.length === 6) {
+      setErrors((prev) => ({ ...prev, otp: '' }));
+    }
     setGlobalError('');
   };
 
-  // Validation for sending OTP (Phone + Email)
+  // Validation for sending OTP
   const validatePhoneAndEmail = () => {
     const errs = {};
+    const cleanPhone = phone.trim();
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (!phone) {
-      errs.phone = 'Please enter a valid mobile number.';
-    } else if (phone.length !== 10 || !INDIAN_PHONE_REGEX.test(phone)) {
+    setTouched((prev) => ({ ...prev, phone: true, email: true }));
+
+    if (!cleanPhone && !cleanEmail) {
+      errs.phone = 'Please enter your 10-digit mobile number.';
+      errs.email = 'Please enter your registered email address.';
+      setErrors(errs);
+      return false;
+    }
+
+    if (!cleanPhone) {
+      errs.phone = 'Please enter your 10-digit mobile number.';
+    } else if (cleanPhone.length !== 10 || !INDIAN_PHONE_REGEX.test(cleanPhone)) {
       errs.phone = 'Please enter a valid 10-digit Indian mobile number.';
     }
 
-    const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      errs.email = 'Please enter a valid email address.';
+      errs.email = 'Please enter your registered email address.';
     } else if (!EMAIL_REGEX.test(cleanEmail)) {
       errs.email = 'Please enter a valid email address format.';
     }
@@ -146,17 +239,15 @@ const LoginPage = () => {
     setIsSendingOtp(true);
     try {
       const res = await userAuthService.loginSendOtp({
-        phone,
-        email: email.trim().toLowerCase(),
+        phone: phone || undefined,
+        email: email ? email.trim().toLowerCase() : undefined,
         deliveryMethod: 'email'
       });
 
       setOtpSent(true);
+      setOtp(''); // strictly empty, user enters OTP from email
       startCooldownTimer(res.data?.resendCooldown || DEFAULT_COOLDOWN_SECONDS);
-      setSuccessMessage(res.message || 'OTP sent successfully. Please check your registered email.');
-      if (res.data?.devOtp || res.data?.otp || res.otp) {
-        setOtp(String(res.data?.devOtp || res.data?.otp || res.otp));
-      }
+      setSuccessMessage(res.message || 'Verification code sent to your registered email address. Please check your inbox.');
 
       // Focus the OTP input field
       setTimeout(() => {
@@ -177,6 +268,7 @@ const LoginPage = () => {
     e.preventDefault();
     setGlobalError('');
     setSuccessMessage('');
+    setTouched({ phone: true, email: true, otp: true });
 
     if (!validatePhoneAndEmail()) return;
 
@@ -195,21 +287,10 @@ const LoginPage = () => {
     setIsSubmitting(true);
     try {
       const authData = await userAuthService.loginVerifyOtp({
-        phone,
-        email: email.trim().toLowerCase(),
+        phone: phone || undefined,
+        email: email ? email.trim().toLowerCase() : undefined,
         otp
       });
-
-      // Save or clear remember credentials
-      if (rememberMe) {
-        localStorage.setItem('apnapay_remember_login', 'true');
-        localStorage.setItem('apnapay_saved_phone', phone);
-        localStorage.setItem('apnapay_saved_email', email.trim().toLowerCase());
-      } else {
-        localStorage.removeItem('apnapay_remember_login');
-        localStorage.removeItem('apnapay_saved_phone');
-        localStorage.removeItem('apnapay_saved_email');
-      }
 
       // Complete customer login session in AuthContext
       await login(authData);
@@ -238,6 +319,11 @@ const LoginPage = () => {
   const isEmailValid = EMAIL_REGEX.test(email.trim().toLowerCase());
   const isOtpValid = otp.length === 6;
 
+  // Validation messages only appear after user interaction/typing
+  const phoneSuccess = touched.phone && !errors.phone && isPhoneValid ? 'Valid 10-digit mobile number' : '';
+  const emailSuccess = touched.email && !errors.email && isEmailValid ? 'Valid email format' : '';
+  const otpSuccess = touched.otp && !errors.otp && isOtpValid ? '6-digit OTP complete' : '';
+
   return (
     <AuthLayout
       title="Welcome Back"
@@ -257,13 +343,14 @@ const LoginPage = () => {
           maxLength={10}
           value={phone}
           onChange={handlePhoneChange}
+          onBlur={handlePhoneBlur}
+          onPaste={handlePhonePaste}
           placeholder="Enter your registered mobile number"
           error={errors.phone}
-          success={!errors.phone && isPhoneValid ? 'Valid 10-digit mobile number' : ''}
+          success={phoneSuccess}
           icon={PhoneIcon}
           required
-          autoComplete="tel"
-          autoFocus
+          autoComplete="off"
         />
 
         {/* ================= 2. EMAIL ADDRESS ================= */}
@@ -273,12 +360,13 @@ const LoginPage = () => {
           type="email"
           value={email}
           onChange={handleEmailChange}
+          onBlur={handleEmailBlur}
           placeholder="Enter your registered email address"
           error={errors.email}
-          success={!errors.email && isEmailValid ? 'Valid email format' : ''}
+          success={emailSuccess}
           icon={MailIcon}
           required
-          autoComplete="email"
+          autoComplete="off"
         />
 
         {/* ================= 3. 6-DIGIT OTP ================= */}
@@ -291,13 +379,14 @@ const LoginPage = () => {
           maxLength={6}
           value={otp}
           onChange={handleOtpChange}
+          onBlur={handleOtpBlur}
           onPaste={handleOtpPaste}
           placeholder="Enter the 6-digit OTP"
           error={errors.otp}
-          success={!errors.otp && isOtpValid ? '6-digit OTP complete' : ''}
+          success={otpSuccess}
           icon={LockIcon}
           required
-          autoComplete="one-time-code"
+          autoComplete="off"
         />
 
         {/* ================= 4. REMEMBER ME CHECKBOX ================= */}

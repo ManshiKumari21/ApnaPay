@@ -22,10 +22,8 @@ router.post('/:id/resend-otp', bankAccountController.resendOtp);
 // 5. DELETE /bank-accounts/:id - Unlink bank account
 router.delete('/:id', bankAccountController.unlinkAccount);
 
-// 6. PATCH /bank-accounts/:id/primary - Set Account as Primary
+// 6. PATCH /bank-accounts/:id/primary - Set primary account
 router.patch('/:id/primary', bankAccountController.setPrimaryAccount);
-router.put('/:id/primary', bankAccountController.setPrimaryAccount);
-router.post('/:id/primary', bankAccountController.setPrimaryAccount);
 
 module.exports = router;
 

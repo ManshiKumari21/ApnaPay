@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
+import { useAuth } from '../../context/AuthContext';
 import {
   BankIcon,
   PlusIcon,
@@ -31,6 +32,7 @@ import {
 
 const CustomerBankAccountsPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [bankAccounts, setBankAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -80,7 +82,8 @@ const CustomerBankAccountsPage = () => {
   const [registeredPhoneEnding, setRegisteredPhoneEnding] = useState('');
   const [maskedMobile, setMaskedMobile] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
-  const [deliveryMethod, setDeliveryMethod] = useState('sms'); // 'sms' | 'email'
+  const [deliveryMethod, setDeliveryMethod] = useState('email'); // 'email' | 'sms'
+  const [selectedDeliveryMethod, setSelectedDeliveryMethod] = useState('email'); // Chosen channel on Step 1
   const [smsDeliveryInfo, setSmsDeliveryInfo] = useState(null);
   const [resendCooldown, setResendCooldown] = useState(60);
   const [isResending, setIsResending] = useState(false);
@@ -864,14 +867,14 @@ const CustomerBankAccountsPage = () => {
         ifscCode: fullIfsc.trim().toUpperCase(),
         accountHolderName: bankForm.accountHolderName.trim() || undefined,
         isPrimary: bankForm.isPrimary,
-        deliveryMethod: 'sms'
+        deliveryMethod: selectedDeliveryMethod || 'email'
       });
 
       setPendingAccountId(res.data.bankAccountId);
       setRegisteredPhoneEnding(res.data.registeredMobileLast4 || '');
       setMaskedMobile(res.data.maskedMobile || '');
       setMaskedEmail(res.data.maskedEmail || '');
-      setDeliveryMethod(res.data.deliveryMethod || 'sms');
+      setDeliveryMethod(res.data.deliveryMethod || selectedDeliveryMethod || 'email');
       setSmsDeliveryInfo(res.data.smsDelivery || null);
       setOtpValue('');
       setOtpDigits(['', '', '', '', '', '']);
@@ -1715,6 +1718,62 @@ const CustomerBankAccountsPage = () => {
                     )}
                   </div>
 
+                  {/* Verification Channel Selector */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#A9BDD7', marginBottom: '8px' }}>
+                      Verification Channel
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDeliveryMethod('email')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: `1.5px solid ${selectedDeliveryMethod === 'email' ? '#00A8FF' : '#17385D'}`,
+                          background: selectedDeliveryMethod === 'email' ? 'rgba(0, 168, 255, 0.12)' : '#071426',
+                          color: '#FFFFFF',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <span style={{ fontSize: '18px' }}>✉</span>
+                        <div>
+                          <div style={{ fontSize: '12.5px', fontWeight: '600', color: selectedDeliveryMethod === 'email' ? '#00A8FF' : '#FFFFFF' }}>Registered Email</div>
+                          <div style={{ fontSize: '11px', color: '#A9BDD7' }}>Instant OTP to Inbox</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDeliveryMethod('sms')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: `1.5px solid ${selectedDeliveryMethod === 'sms' ? '#00A8FF' : '#17385D'}`,
+                          background: selectedDeliveryMethod === 'sms' ? 'rgba(0, 168, 255, 0.12)' : '#071426',
+                          color: '#FFFFFF',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <span style={{ fontSize: '18px' }}>📱</span>
+                        <div>
+                          <div style={{ fontSize: '12.5px', fontWeight: '600', color: selectedDeliveryMethod === 'sms' ? '#00A8FF' : '#FFFFFF' }}>Mobile SMS</div>
+                          <div style={{ fontSize: '11px', color: '#A9BDD7' }}>OTP to Phone</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Primary Toggle */}
                   <div style={{ marginBottom: '14px' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#FFFFFF' }}>
@@ -1785,47 +1844,16 @@ const CustomerBankAccountsPage = () => {
 
                   {/* Delivery Status Indicator */}
                   {deliveryMethod === 'email' ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '20px', padding: '5px 14px', margin: '0 auto 16px', width: 'fit-content', fontSize: '11.5px', color: '#86efac' }}>
-                      <CheckCircleIcon size={13} />
-                      <span>{isDemoMode() ? 'Demo Mode: OTP sent to registered email ' : 'OTP sent to email '}<strong>{maskedEmail}</strong></span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '20px', padding: '6px 16px', margin: '0 auto 16px', width: 'fit-content', fontSize: '12px', color: '#86efac' }}>
+                      <CheckCircleIcon size={14} />
+                      <span>Verification code sent to registered email <strong>{maskedEmail}</strong></span>
                     </div>
-                  ) : smsDeliveryInfo?.deliveryMode === 'sms' ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '20px', padding: '5px 14px', margin: '0 auto 16px', width: 'fit-content', fontSize: '11.5px', color: '#86efac' }}>
-                      <CheckCircleIcon size={13} />
-                      <span>SMS sent to mobile ending in <strong>{registeredPhoneEnding || 'XXXX'}</strong></span>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(0, 168, 255, 0.1)', border: '1px solid rgba(0, 168, 255, 0.25)', borderRadius: '20px', padding: '6px 16px', margin: '0 auto 16px', width: 'fit-content', fontSize: '12px', color: '#7dd3fc' }}>
+                      <CheckCircleIcon size={14} />
+                      <span>Verification code sent to mobile ending in <strong>{registeredPhoneEnding || 'XXXX'}</strong></span>
                     </div>
-                  ) : (smsDeliveryInfo?.configured === false || smsDeliveryInfo?.deliveryMode === 'unconfigured') ? (
-                    <div style={{ background: 'rgba(22, 119, 255, 0.08)', border: '1px solid rgba(22, 119, 255, 0.25)', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px', fontSize: '12.5px', color: '#A9BDD7', textAlign: 'left' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#00A8FF', fontWeight: '600', marginBottom: '4px' }}>
-                        <InfoIcon size={15} /> SMS Service Not Configured
-                      </div>
-                      <div style={{ lineHeight: 1.5, marginBottom: maskedEmail ? '10px' : '0' }}>
-                        SMS gateway credentials are not configured in this environment. Please verify your bank account using your registered email instead.
-                      </div>
-                      {maskedEmail && (
-                        <button
-                          type="button"
-                          onClick={() => handleResendOtp('email')}
-                          disabled={isResending}
-                          style={{
-                            background: 'linear-gradient(135deg, #1677FF, #00A6FF)',
-                            color: '#FFFFFF',
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '6px 14px',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            cursor: isResending ? 'not-allowed' : 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px'
-                          }}
-                        >
-                          ✉ Send Code to Registered Email ({maskedEmail})
-                        </button>
-                      )}
-                    </div>
-                  ) : null}
+                  )}
 
                   {/* 6-Digit Segmented OTP Input */}
                   <div style={{ marginBottom: '18px' }}>
@@ -1899,16 +1927,21 @@ const CustomerBankAccountsPage = () => {
                         onClick={() => handleResendOtp('email')}
                         disabled={isResending}
                         style={{
-                          background: 'none',
-                          border: 'none',
+                          background: 'rgba(0, 168, 255, 0.08)',
+                          border: '1px solid rgba(0, 168, 255, 0.25)',
+                          borderRadius: '6px',
+                          padding: '6px 14px',
                           color: '#00A8FF',
                           cursor: isResending ? 'not-allowed' : 'pointer',
                           fontSize: '12px',
-                          textDecoration: 'underline',
-                          fontWeight: '500'
+                          fontWeight: '600',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s'
                         }}
                       >
-                        ✉ Verify using registered email ({maskedEmail}) instead
+                        ✉ Switch to Registered Email ({maskedEmail}) instead
                       </button>
                     </div>
                   ) : deliveryMethod === 'email' ? (
@@ -1918,16 +1951,21 @@ const CustomerBankAccountsPage = () => {
                         onClick={() => handleResendOtp('sms')}
                         disabled={isResending}
                         style={{
-                          background: 'none',
-                          border: 'none',
+                          background: 'rgba(0, 168, 255, 0.08)',
+                          border: '1px solid rgba(0, 168, 255, 0.25)',
+                          borderRadius: '6px',
+                          padding: '6px 14px',
                           color: '#00A8FF',
                           cursor: isResending ? 'not-allowed' : 'pointer',
                           fontSize: '12px',
-                          textDecoration: 'underline',
-                          fontWeight: '500'
+                          fontWeight: '600',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s'
                         }}
                       >
-                        📱 Verify using mobile SMS ({registeredPhoneEnding ? `ending in ${registeredPhoneEnding}` : 'mobile'}) instead
+                        📱 Switch to Mobile SMS ({registeredPhoneEnding ? `ending in ${registeredPhoneEnding}` : 'mobile'}) instead
                       </button>
                     </div>
                   ) : null}

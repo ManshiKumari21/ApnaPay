@@ -238,13 +238,27 @@ exports.initiateLink = async (req, res) => {
             });
         }
 
-        // Cooldown check between OTP requests for the same user
+        // Determine initial delivery method: default to email if user has email and email is configured, or if client requested email
+        const requestedDelivery = String(deliveryMethod || '').toLowerCase();
+        let activeDeliveryMethod = requestedDelivery === 'email' ? 'email' : (requestedDelivery === 'sms' ? 'sms' : 'email');
+
+        // Smart Delivery Routing:
+        // If deliveryMethod is SMS, but SMS provider has no real credentials, while Email IS configured and user has an email,
+        // automatically route to Email so the user receives their verification code within 1-2 seconds without delay!
+        if (activeDeliveryMethod === 'sms' && !smsService.hasRealSmsProvider() && emailService.isEmailConfigured() && userRecord.email) {
+            activeDeliveryMethod = 'email';
+        }
+
+        // Separate OTP channels: Requirement 10
+        const otpPurpose = activeDeliveryMethod === 'email' ? 'bank_account_link_email' : 'bank_account_link_sms';
+
+        // Cooldown check between OTP requests for the same user and channel
         const [recentOtps] = await db.execute(
             `SELECT id, created_at FROM otp_verifications
-             WHERE user_id = ? AND purpose = 'bank_account_link'
+             WHERE user_id = ? AND purpose = ?
              AND created_at > DATE_SUB(NOW(), INTERVAL ? SECOND)
              ORDER BY created_at DESC LIMIT 1`,
-            [userId, OTP_RESEND_COOLDOWN_SECONDS]
+            [userId, otpPurpose, OTP_RESEND_COOLDOWN_SECONDS]
         );
 
         if (recentOtps.length > 0) {
@@ -262,34 +276,27 @@ exports.initiateLink = async (req, res) => {
         const otpHash = await bcrypt.hash(otp, 10);
         const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-        // Invalidate previous unverified OTPs for this user and purpose
+        // Invalidate ONLY previous unverified OTPs for this user and specific channel
+        // Requirement 10: Email and SMS verification remain separate and do NOT overwrite each other's state
         await db.execute(
             `UPDATE otp_verifications
              SET expires_at = NOW()
-             WHERE user_id = ? AND purpose = 'bank_account_link' AND verified_at IS NULL`,
-            [userId]
+             WHERE user_id = ? AND purpose = ? AND verified_at IS NULL`,
+            [userId, otpPurpose]
         );
 
         // Save hashed OTP in otp_verifications table (NEVER store plain-text OTP)
         const [otpResult] = await db.execute(
             `INSERT INTO otp_verifications
              (user_id, phone, email, otp_hash, purpose, expires_at, attempts)
-             VALUES (?, ?, ?, ?, 'bank_account_link', ?, 0)`,
-            [userId, userRecord.phone, userRecord.email, otpHash, expiresAt]
+             VALUES (?, ?, ?, ?, ?, ?, 0)`,
+            [userId, userRecord.phone, userRecord.email, otpHash, otpPurpose, expiresAt]
         );
         const otpVerificationId = otpResult.insertId;
 
         // Masked identifiers for safe display
         const phoneInfo = smsService.maskPhone(userRecord.phone);
         const maskedEmail = emailService.maskEmail(userRecord.email);
-
-        // Smart Delivery Routing:
-        // If deliveryMethod is SMS, but SMS provider is not configured, while Email IS configured and user has an email,
-        // automatically route to Email so the user receives their verification code within 1-2 seconds without delay!
-        let activeDeliveryMethod = deliveryMethod;
-        if (activeDeliveryMethod === 'sms' && !smsService.isSmsConfigured() && emailService.isEmailConfigured() && userRecord.email) {
-            activeDeliveryMethod = 'email';
-        }
 
         let deliveryMode = activeDeliveryMethod;
         let deliverySuccess = true;
@@ -502,17 +509,20 @@ exports.resendOtp = async (req, res) => {
             });
         }
 
-        const deliveryMethod = String(req.body?.deliveryMethod || sessionData.deliveryMethod || 'sms').toLowerCase();
-        const isChannelSwitch = Boolean(sessionData.deliveryMethod && deliveryMethod !== sessionData.deliveryMethod);
+        const requestedMethod = String(req.body?.deliveryMethod || '').toLowerCase();
+        let targetMethod = requestedMethod === 'email' ? 'email' : (requestedMethod === 'sms' ? 'sms' : (sessionData.deliveryMethod || 'email'));
+
+        const isChannelSwitch = Boolean(sessionData.deliveryMethod && targetMethod !== sessionData.deliveryMethod);
+        const otpPurpose = targetMethod === 'email' ? 'bank_account_link_email' : 'bank_account_link_sms';
 
         // Enforce cooldown only when requesting via the SAME channel
         if (!isChannelSwitch) {
             const [recentOtps] = await db.execute(
                 `SELECT id, created_at FROM otp_verifications
-                 WHERE user_id = ? AND purpose = 'bank_account_link'
+                 WHERE user_id = ? AND purpose = ?
                  AND created_at > DATE_SUB(NOW(), INTERVAL ? SECOND)
                  ORDER BY created_at DESC LIMIT 1`,
-                [userId, OTP_RESEND_COOLDOWN_SECONDS]
+                [userId, otpPurpose, OTP_RESEND_COOLDOWN_SECONDS]
             );
 
             if (recentOtps.length > 0) {
@@ -526,12 +536,13 @@ exports.resendOtp = async (req, res) => {
             }
         }
 
-        // Invalidate previous unverified OTPs
+        // Invalidate previous unverified OTPs ONLY for this specific target channel
+        // Requirement 10: Email and SMS verification remain separate and do NOT overwrite each other's OTP state
         await db.execute(
             `UPDATE otp_verifications
              SET expires_at = NOW()
-             WHERE user_id = ? AND purpose = 'bank_account_link' AND verified_at IS NULL`,
-            [userId]
+             WHERE user_id = ? AND purpose = ? AND verified_at IS NULL`,
+            [userId, otpPurpose]
         );
 
         // Generate new secure 6-digit random OTP
@@ -542,19 +553,19 @@ exports.resendOtp = async (req, res) => {
         const [newOtpResult] = await db.execute(
             `INSERT INTO otp_verifications
              (user_id, phone, email, otp_hash, purpose, expires_at, attempts)
-             VALUES (?, ?, ?, ?, 'bank_account_link', ?, 0)`,
-            [userId, userRecord.phone, userRecord.email, otpHash, expiresAt]
+             VALUES (?, ?, ?, ?, ?, ?, 0)`,
+            [userId, userRecord.phone, userRecord.email, otpHash, otpPurpose, expiresAt]
         );
 
         // Masked details
         const phoneInfo = smsService.maskPhone(userRecord.phone);
         const maskedEmail = emailService.maskEmail(userRecord.email);
 
-        let deliveryMode = 'sms';
+        let deliveryMode = targetMethod;
         let deliverySuccess = true;
         let deliveryMessage = '';
 
-        if (deliveryMethod === 'email') {
+        if (targetMethod === 'email') {
             if (!userRecord.email) {
                 return res.status(400).json({
                     success: false,
@@ -586,7 +597,7 @@ exports.resendOtp = async (req, res) => {
         // Update provider_token
         const updatedProviderToken = JSON.stringify({
             otpVerificationId: newOtpResult.insertId,
-            deliveryMethod,
+            deliveryMethod: targetMethod,
             registeredPhoneLast4: phoneInfo.last4,
             maskedPhone: phoneInfo.masked,
             maskedEmail,
@@ -606,7 +617,7 @@ exports.resendOtp = async (req, res) => {
             maskedMobile: phoneInfo.masked,
             registeredEmail: userRecord.email,
             maskedEmail,
-            deliveryMethod,
+            deliveryMethod: targetMethod,
             expiresIn: OTP_EXPIRY_MINUTES * 60,
             resendCooldown: OTP_RESEND_COOLDOWN_SECONDS,
             resendCount: currentResends + 1,
@@ -711,12 +722,14 @@ exports.verifyAccount = async (req, res) => {
             });
         }
 
-        // Fetch latest active unverified OTP for this user and purpose
+        // Fetch active unverified OTPs for this user across both bank linking channels or legacy
         const [otpRecords] = await db.execute(
-            `SELECT id, otp_hash, attempts, expires_at, verified_at
+            `SELECT id, otp_hash, attempts, expires_at, verified_at, purpose
              FROM otp_verifications
-             WHERE user_id = ? AND purpose = 'bank_account_link' AND verified_at IS NULL
-             ORDER BY id DESC LIMIT 1`,
+             WHERE user_id = ?
+               AND purpose IN ('bank_account_link_email', 'bank_account_link_sms', 'bank_account_link')
+               AND verified_at IS NULL
+             ORDER BY id DESC`,
             [userId]
         );
 
@@ -727,38 +740,39 @@ exports.verifyAccount = async (req, res) => {
             });
         }
 
-        const otpRecord = otpRecords[0];
-
-        // Expiry check
-        if (new Date(otpRecord.expires_at) < new Date()) {
+        // Filter for unexpired records
+        const validRecords = otpRecords.filter(r => new Date(r.expires_at) >= new Date());
+        if (validRecords.length === 0) {
             return res.status(400).json({
                 success: false,
                 message: `The verification code has expired (valid for ${OTP_EXPIRY_MINUTES} minutes). Please click Resend OTP.`
             });
         }
 
-        // Max attempts check
-        if (otpRecord.attempts >= OTP_MAX_ATTEMPTS) {
-            await db.execute('UPDATE otp_verifications SET expires_at = NOW() WHERE id = ?', [otpRecord.id]);
-            return res.status(429).json({
-                success: false,
-                message: `Maximum incorrect attempts (${OTP_MAX_ATTEMPTS}) exceeded. This verification code is locked. Please request a new OTP.`
-            });
+        // Verify against records (prioritize active channel or whichever matches hash)
+        let matchedRecord = null;
+        for (const record of validRecords) {
+            if (record.attempts >= OTP_MAX_ATTEMPTS) {
+                continue;
+            }
+            const isMatch = await bcrypt.compare(otp, record.otp_hash);
+            if (isMatch) {
+                matchedRecord = record;
+                break;
+            }
         }
 
-        // Secure bcrypt hash verification
-        const isOtpValid = await bcrypt.compare(otp, otpRecord.otp_hash);
-
-        if (!isOtpValid) {
-            const nextAttempts = otpRecord.attempts + 1;
-            await db.execute('UPDATE otp_verifications SET attempts = ? WHERE id = ?', [nextAttempts, otpRecord.id]);
+        if (!matchedRecord) {
+            const targetRec = validRecords[0];
+            const nextAttempts = targetRec.attempts + 1;
+            await db.execute('UPDATE otp_verifications SET attempts = ? WHERE id = ?', [nextAttempts, targetRec.id]);
             const remaining = Math.max(0, OTP_MAX_ATTEMPTS - nextAttempts);
 
             if (remaining === 0) {
-                await db.execute('UPDATE otp_verifications SET expires_at = NOW() WHERE id = ?', [otpRecord.id]);
+                await db.execute('UPDATE otp_verifications SET expires_at = NOW() WHERE id = ?', [targetRec.id]);
                 return res.status(429).json({
                     success: false,
-                    message: `Maximum incorrect attempts (${OTP_MAX_ATTEMPTS}) exceeded. Please request a new OTP.`,
+                    message: `Maximum incorrect attempts (${OTP_MAX_ATTEMPTS}) exceeded. This verification code is locked. Please request a new OTP.`,
                     remainingAttempts: 0
                 });
             }
@@ -773,7 +787,7 @@ exports.verifyAccount = async (req, res) => {
         // Invalidate OTP to prevent replay/reuse
         await db.execute(
             `UPDATE otp_verifications SET verified_at = NOW() WHERE id = ?`,
-            [otpRecord.id]
+            [matchedRecord.id]
         );
 
         // Primary status management

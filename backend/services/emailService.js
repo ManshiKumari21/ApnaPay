@@ -1,56 +1,36 @@
 const nodemailer = require('nodemailer');
 
-// Singleton pooled transporter to avoid repeated TLS & SMTP handshakes (delivers in 1-2 seconds)
 let pooledTransporter = null;
 
-const createTransporterInstance = (isPooled = true) => {
-    const host = process.env.EMAIL_HOST || 'smtp.gmail.com';
-    const port = parseInt(process.env.EMAIL_PORT, 10) || 587;
-    const secure = process.env.EMAIL_SECURE !== undefined
-        ? process.env.EMAIL_SECURE === 'true'
-        : (port === 465);
-
-    const user = process.env.EMAIL_USER;
+// Create SMTP Transporter instance
+const createTransporterInstance = (pool = true) => {
+    const isSecure = process.env.EMAIL_SECURE === 'true' || Number(process.env.EMAIL_PORT) === 465;
     const rawPass = process.env.EMAIL_PASS || process.env.EMAIL_APP_PASSWORD || '';
-    const pass = rawPass.replace(/\s+/g, '');
+    const cleanPass = rawPass.trim().replace(/\s+/g, '');
 
-    const config = {
-        host,
-        port,
-        secure,
+    return nodemailer.createTransport({
+        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+        port: Number(process.env.EMAIL_PORT) || 587,
+        secure: isSecure,
+        pool: pool,
+        maxConnections: 5,
+        maxMessages: 100,
+        rateDelta: 1000,
+        rateLimit: 5,
         auth: {
-            user,
-            pass
+            user: (process.env.EMAIL_USER || '').trim(),
+            pass: cleanPass
+        },
+        tls: {
+            rejectUnauthorized: false
         },
         connectionTimeout: 10000,
         greetingTimeout: 10000,
-        socketTimeout: 15000,
-        tls: {
-            rejectUnauthorized: false,
-            minVersion: 'TLSv1.2'
-        }
-    };
-
-    if (isPooled) {
-        config.pool = true;
-        config.maxConnections = 5;
-        config.maxMessages = 100;
-        config.rateDelta = 1000;
-        config.rateLimit = 5;
-    }
-
-    const transporter = nodemailer.createTransport(config);
-
-    if (isPooled) {
-        transporter.on('error', (err) => {
-            console.warn('[EmailService] Pooled transporter connection error:', err.message);
-            pooledTransporter = null;
-        });
-    }
-
-    return transporter;
+        socketTimeout: 15000
+    });
 };
 
+// Singleton getter for warm connection pool
 const getTransporter = () => {
     if (pooledTransporter) {
         return pooledTransporter;
@@ -72,6 +52,22 @@ const checkEmailConfig = () => {
     );
 };
 
+// Pre-warm the SMTP connection pool on startup for instant 1-2s OTP dispatch
+const warmTransporter = async () => {
+    if (!checkEmailConfig()) {
+        return false;
+    }
+    try {
+        const transporter = getTransporter();
+        await transporter.verify();
+        console.log('[EmailService] SMTP connection pre-warmed & ready for instant 1-2s OTP delivery.');
+        return true;
+    } catch (err) {
+        console.warn('[EmailService] SMTP pre-warm warning (will connect on first dispatch):', err.message);
+        return false;
+    }
+};
+
 // Helper to mask email address for privacy and safe UI display (e.g. g****2@gmail.com)
 const maskEmail = (email) => {
     if (!email || typeof email !== 'string') return '';
@@ -91,14 +87,16 @@ const maskEmail = (email) => {
 const sendOtpEmail = async (email, otp, purpose = 'email_verification') => {
     const isConfigured = checkEmailConfig();
 
+    // If SMTP is not configured, print OTP to server console so user can copy and test
     if (!isConfigured) {
         console.log(`\n======================================================================`);
-        console.log(`[APNAPAY OTP FOR TESTING] -> ${email}`);
+        console.log(`[APNAPAY EMAIL OTP DISPATCH]`);
+        console.log(`To:       ${email}`);
         console.log(`OTP Code: ${otp}`);
-        console.log(`Notice: EMAIL_USER and EMAIL_PASS are not configured in backend/.env.`);
-        console.log(`To receive real emails in your inbox, set your Gmail and Google App Password in backend/.env:`);
-        console.log(`EMAIL_USER=your_email@gmail.com`);
-        console.log(`EMAIL_PASS=your_16_character_app_password`);
+        console.log(`Purpose:  ${purpose}`);
+        console.log(`Notice:   EMAIL_PASS is empty in backend/.env.`);
+        console.log(`          To receive real emails in your inbox, set your 16-char Gmail App Password in backend/.env:`);
+        console.log(`          EMAIL_PASS=your_16_char_google_app_password`);
         console.log(`======================================================================\n`);
         return {
             success: true,
@@ -154,7 +152,6 @@ const sendOtpEmail = async (email, otp, purpose = 'email_verification') => {
                     <tr>
                         <td align="center">
                             <table role="presentation" width="100%" style="max-width: 520px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);">
-                                <!-- Header / Logo -->
                                 <tr>
                                     <td style="padding: 28px 32px 20px; text-align: center; background-color: #0d1b2a; border-bottom: 2px solid #00a6ff;">
                                         <div style="font-size: 26px; font-weight: 800; letter-spacing: -0.5px; color: #00a6ff; margin-bottom: 4px;">
@@ -165,8 +162,6 @@ const sendOtpEmail = async (email, otp, purpose = 'email_verification') => {
                                         </div>
                                     </td>
                                 </tr>
-
-                                <!-- Body Content -->
                                 <tr>
                                     <td style="padding: 32px 32px 24px;">
                                         <p style="margin: 0 0 14px; font-size: 15px; line-height: 1.5; color: #334155;">
@@ -175,8 +170,6 @@ const sendOtpEmail = async (email, otp, purpose = 'email_verification') => {
                                         <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: #475569;">
                                             ${emailSubtitle}
                                         </p>
-
-                                        <!-- OTP Display Box -->
                                         <div style="background-color: #f8fafc; border: 2px dashed #0284c7; border-radius: 12px; padding: 22px 16px; text-align: center; margin: 24px 0;">
                                             <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b; margin-bottom: 8px;">
                                                 Verification Code
@@ -185,8 +178,6 @@ const sendOtpEmail = async (email, otp, purpose = 'email_verification') => {
                                                 ${otp}
                                             </div>
                                         </div>
-
-                                        <!-- Validity Note -->
                                         <p style="margin: 20px 0 8px; font-size: 13px; color: #64748b; line-height: 1.5;">
                                             ⏱ This code is valid for <strong>5 minutes</strong>. Do not share it with anyone.
                                         </p>
@@ -195,8 +186,6 @@ const sendOtpEmail = async (email, otp, purpose = 'email_verification') => {
                                         </p>
                                     </td>
                                 </tr>
-
-                                <!-- Footer -->
                                 <tr>
                                     <td style="padding: 18px 32px 22px; text-align: center; border-top: 1px solid #f1f5f9; background-color: #f8fafc;">
                                         <p style="margin: 0; font-size: 12px; color: #94a3b8;">
@@ -219,7 +208,8 @@ const sendOtpEmail = async (email, otp, purpose = 'email_verification') => {
         console.log(`[EmailService] OTP [${otp}] successfully dispatched to ${email} (MessageId: ${info.messageId})`);
         return {
             success: true,
-            messageId: info.messageId
+            messageId: info.messageId,
+            otp
         };
     } catch (err) {
         console.warn(`[EmailService] Pooled sendMail failed (${err.message}). Retrying with fresh transporter...`);
@@ -230,16 +220,27 @@ const sendOtpEmail = async (email, otp, purpose = 'email_verification') => {
             console.log(`[EmailService] OTP [${otp}] successfully dispatched on retry to ${email} (MessageId: ${retryInfo.messageId})`);
             return {
                 success: true,
-                messageId: retryInfo.messageId
+                messageId: retryInfo.messageId,
+                otp
             };
         } catch (retryErr) {
             console.error(`[EmailService] Failed to send OTP email to ${email}:`, retryErr.message);
-            return {
-                success: true,
-                simulated: true,
-                otp,
-                error: retryErr.message
-            };
+            // In development or test, fall back to simulated OTP so login/registration does not break
+            if (process.env.NODE_ENV !== 'production' || process.env.DEV_EMAIL_BYPASS === 'true') {
+                console.log(`\n======================================================================`);
+                console.log(`[APNAPAY OTP DISPATCH - FALLBACK TO DEV SIMULATION]`);
+                console.log(`To:       ${email}`);
+                console.log(`OTP Code: ${otp}`);
+                console.log(`Notice: SMTP delivery failed (${retryErr.message}). OTP is valid for login.`);
+                console.log(`======================================================================\n`);
+                return {
+                    success: true,
+                    simulated: true,
+                    otp,
+                    error: retryErr.message
+                };
+            }
+            throw retryErr;
         }
     }
 };
@@ -248,5 +249,6 @@ module.exports = {
     sendOtpEmail,
     maskEmail,
     checkEmailConfig,
-    isEmailConfigured: checkEmailConfig
+    isEmailConfigured: checkEmailConfig,
+    warmTransporter
 };

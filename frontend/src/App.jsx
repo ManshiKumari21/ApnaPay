@@ -23,6 +23,7 @@ import CustomerWalletPage from './pages/customer/CustomerWalletPage';
 import CustomerTransactionsPage from './pages/customer/CustomerTransactionsPage';
 import CustomerLandPage from './pages/customer/CustomerLandPage';
 import CustomerBillsPage from './pages/customer/CustomerBillsPage';
+import CustomerServicesPage from './pages/customer/CustomerServicesPage';
 
 // Full Customer Platform Modules
 import MoneyTransfers from './pages/transfers/MoneyTransfers';
@@ -186,6 +187,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <CustomerDashboardOverview />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/app/services"
+                element={
+                  <ProtectedRoute>
+                    <CustomerServicesPage />
                   </ProtectedRoute>
                 }
               />

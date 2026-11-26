@@ -138,13 +138,9 @@ const AdminLoginPage = () => {
       });
 
       setOtpSent(true);
-      if (res?.devOtp || res?.otp || res?.data?.devOtp || res?.data?.otp) {
-        setOtp(String(res?.devOtp || res?.otp || res?.data?.devOtp || res?.data?.otp));
-      } else {
-        setOtp('');
-      }
+      setOtp(''); // strictly empty, administrator enters OTP from email
       startCooldownTimer(DEFAULT_COOLDOWN_SECONDS);
-      setSuccessMessage(res?.message || 'Admin OTP sent successfully. Please check your registered email.');
+      setSuccessMessage(res?.message || 'Verification code sent to your registered admin email address. Please check your inbox.');
 
       setTimeout(() => {
         if (otpInputRef.current) {

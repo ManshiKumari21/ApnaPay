@@ -248,7 +248,7 @@ export default function Sidebar({ active, setActive, mobileOpen, setMobileOpen }
         {/* Customer Portal Shortcut */}
         <Link
           to="/app"
-          className="sidebar-link"
+          className="sidebar-link sidebar-customer-portal"
           style={{
             marginTop: "8px",
             background: "rgba(0, 168, 255, 0.08)",

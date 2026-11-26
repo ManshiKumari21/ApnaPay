@@ -29,24 +29,10 @@ function maskPhone(phone) {
 }
 
 /**
- * Checks whether any supported SMS provider is properly configured via environment variables.
+ * Checks whether real SMS credentials (MSG91, Twilio, Fast2SMS, Generic Gateway) are present.
  */
-function isSmsConfigured() {
+function hasRealSmsProvider() {
   const provider = (process.env.SMS_PROVIDER || '').toLowerCase();
-
-  const isMock = Boolean(
-    provider === 'mock' ||
-    provider === 'test' ||
-    process.env.NODE_ENV === 'test' ||
-    process.env.NODE_ENV === 'development' ||
-    process.env.SMS_SIMULATED === 'true'
-  );
-  if (isMock) return true;
-
-  const hasTwoFactor = Boolean(
-    process.env.TWOFACTOR_API_KEY ||
-    ((provider === '2factor' || provider === 'twofactor') && process.env.SMS_API_KEY)
-  );
 
   const hasMsg91 = Boolean(
     (process.env.MSG91_AUTH_KEY || process.env.SMS_API_KEY) &&
@@ -65,43 +51,28 @@ function isSmsConfigured() {
 
   const hasGeneric = Boolean(process.env.SMS_GATEWAY_URL);
 
-  if (provider === '2factor' || provider === 'twofactor') return hasTwoFactor;
   if (provider === 'msg91') return hasMsg91;
   if (provider === 'twilio') return hasTwilio;
   if (provider === 'fast2sms') return hasFast2Sms;
   if (provider === 'generic') return hasGeneric;
 
-  // Auto-detect by credential presence if SMS_PROVIDER is empty or generic
-  return hasTwoFactor || hasMsg91 || hasTwilio || hasFast2Sms || hasGeneric;
+  return hasMsg91 || hasTwilio || hasFast2Sms || hasGeneric;
 }
 
 /**
- * Dispatches an SMS via 2Factor API.
+ * Checks whether any supported SMS provider is properly configured via environment variables.
  */
-async function sendViaTwoFactor(phone, otp) {
-  const apiKey = process.env.TWOFACTOR_API_KEY || process.env.SMS_API_KEY;
-  const templateName = process.env.SMS_TEMPLATE_ID || process.env.TWOFACTOR_TEMPLATE_NAME || 'OTP';
-  const digits = String(phone).replace(/\D/g, '').slice(-10);
+function isSmsConfigured() {
+  const provider = (process.env.SMS_PROVIDER || '').toLowerCase();
 
-  const url = `https://2factor.in/v1/API/${encodeURIComponent(apiKey)}/SMS/${digits}/${encodeURIComponent(otp)}/${encodeURIComponent(templateName)}`;
+  const isMock = Boolean(
+    provider === 'mock' ||
+    provider === 'test' ||
+    process.env.SMS_SIMULATED === 'true'
+  );
+  if (isMock) return true;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(5000)
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (response.ok && (data.Status === 'Success' || data.status === 'success')) {
-    return {
-      success: true,
-      provider: '2factor',
-      providerRef: data.Details || 'accepted'
-    };
-  }
-
-  throw new Error(data.Details || data.message || `2Factor returned status ${response.status}`);
+  return hasRealSmsProvider();
 }
 
 /**
@@ -262,17 +233,14 @@ async function sendOtpSms({ phone, otp, purpose = 'bank_account_link' }) {
 
   // 1. If SMS provider is NOT configured:
   if (!isSmsConfigured()) {
-    console.warn(`[SMS Service] SMS provider is not configured.`);
-    const unconfiguredMsg = purpose === 'kyc_mobile_verification'
-      ? 'SMS Gateway is not configured. Please contact the administrator to configure SMS_API_KEY and SMS_PROVIDER.'
-      : 'SMS delivery service is not configured. Please verify using your registered email.';
+    console.log(`[SMS Service] SMS provider is not configured. Requesting fallback to email verification.`);
     return {
       success: false,
       deliveryMode: 'unconfigured',
       configured: false,
       maskedPhone: masked,
       phoneLast4: last4,
-      message: unconfiguredMsg
+      message: 'SMS delivery service is not configured. Please verify using your registered email.'
     };
   }
 
@@ -282,12 +250,18 @@ async function sendOtpSms({ phone, otp, purpose = 'bank_account_link' }) {
   try {
     let result;
     if (provider === 'mock' || provider === 'test' || process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development' || process.env.SMS_SIMULATED === 'true') {
+      console.log(`\n======================================================================`);
+      console.log(`[APNAPAY SMS OTP DISPATCH - LOCAL DEV]`);
+      console.log(`To Phone: ${phone}`);
+      console.log(`OTP Code: ${otp}`);
+      console.log(`Purpose:  ${purpose}`);
+      console.log(`Notice:   To send real SMS to mobile phones, set your SMS Gateway API key in backend/.env:`);
+      console.log(`          FAST2SMS_API_KEY=your_fast2sms_key  (or TWILIO / MSG91)`);
+      console.log(`======================================================================\n`);
       result = {
         provider: 'mock-sms-gateway',
         providerRef: 'SIM-' + Date.now()
       };
-    } else if (provider === '2factor' || provider === 'twofactor' || (!provider && process.env.TWOFACTOR_API_KEY)) {
-      result = await sendViaTwoFactor(phone, otp);
     } else if (provider === 'twilio' || (!provider && process.env.TWILIO_ACCOUNT_SID)) {
       result = await sendViaTwilio(phone, otp);
     } else if (provider === 'fast2sms' || (!provider && process.env.FAST2SMS_API_KEY)) {
@@ -316,10 +290,6 @@ async function sendOtpSms({ phone, otp, purpose = 'bank_account_link' }) {
   } catch (error) {
     console.error(`[SMS Service] Error sending SMS to ${masked}:`, error.message);
 
-    const failureMsg = purpose === 'kyc_mobile_verification'
-      ? `Failed to deliver SMS to your registered mobile number (${error.message}). Please try again later.`
-      : 'Failed to deliver SMS to your registered mobile number. Please verify using your registered email.';
-
     return {
       success: false,
       deliveryMode: 'failed',
@@ -327,13 +297,14 @@ async function sendOtpSms({ phone, otp, purpose = 'bank_account_link' }) {
       maskedPhone: masked,
       phoneLast4: last4,
       error: error.message,
-      message: failureMsg
+      message: 'Failed to deliver SMS to your registered mobile number. Please verify using your registered email.'
     };
   }
 }
 
 module.exports = {
   isSmsConfigured,
+  hasRealSmsProvider,
   maskPhone,
   sendOtpSms
 };

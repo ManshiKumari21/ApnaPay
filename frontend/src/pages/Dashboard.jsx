@@ -195,7 +195,7 @@ export default function Dashboard({ onNavigate, setActive }) {
   };
 
   return (
-    <div className="fintech-dashboard-wrapper">
+    <div className="fintech-dashboard-wrapper dashboard-wrapper">
       {/* 1. Top Hero: Personalized Enterprise Admin Greeting & Revenue Card */}
       <div className="overview-hero-row">
         {/* Welcome Greeting Banner */}
@@ -379,7 +379,7 @@ export default function Dashboard({ onNavigate, setActive }) {
             <span className="fintech-trend-green">{userGrowth}</span>
             <span className="fintech-trend-sub">vs last 7 days</span>
           </div>
-          <svg className="fintech-kpi-sparkline" viewBox="0 0 110 42" fill="none">
+          <svg className="fintech-kpi-sparkline" width="110" height="42" viewBox="0 0 110 42" fill="none">
             <defs>
               <linearGradient id="blueGlow" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#00D5FF" stopOpacity="0.35" />
@@ -405,7 +405,7 @@ export default function Dashboard({ onNavigate, setActive }) {
             <span className="fintech-trend-green">{txnGrowth}</span>
             <span className="fintech-trend-sub">vs last 7 days</span>
           </div>
-          <svg className="fintech-kpi-sparkline" viewBox="0 0 110 42" fill="none">
+          <svg className="fintech-kpi-sparkline" width="110" height="42" viewBox="0 0 110 42" fill="none">
             <defs>
               <linearGradient id="greenGlow" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#00E599" stopOpacity="0.35" />
@@ -431,7 +431,7 @@ export default function Dashboard({ onNavigate, setActive }) {
             <span className="fintech-trend-green">{volumeGrowth}</span>
             <span className="fintech-trend-sub">vs last 7 days</span>
           </div>
-          <svg className="fintech-kpi-sparkline" viewBox="0 0 110 42" fill="none">
+          <svg className="fintech-kpi-sparkline" width="110" height="42" viewBox="0 0 110 42" fill="none">
             <defs>
               <linearGradient id="purpleGlow" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#A855F7" stopOpacity="0.35" />
@@ -457,7 +457,7 @@ export default function Dashboard({ onNavigate, setActive }) {
             <span className="fintech-trend-green">{revenueGrowth}</span>
             <span className="fintech-trend-sub">vs last 7 days</span>
           </div>
-          <svg className="fintech-kpi-sparkline" viewBox="0 0 110 42" fill="none">
+          <svg className="fintech-kpi-sparkline" width="110" height="42" viewBox="0 0 110 42" fill="none">
             <defs>
               <linearGradient id="goldGlow" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.35" />

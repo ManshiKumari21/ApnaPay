@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ShieldIcon, AlertCircleIcon, CheckCircleIcon } from './Icons';
 
 const AuthLayout = ({
@@ -25,14 +26,19 @@ const AuthLayout = ({
             <span>{badgeText}</span>
           </div>
 
-          <div className="brand-logo-wrap">
+          <Link
+            to="/login"
+            className="brand-logo-wrap"
+            title="Go to ApnaPay Login"
+            aria-label="ApnaPay Home"
+          >
             <div className="brand-logo-icon">
               <ShieldIcon size={compact ? 20 : 24} />
             </div>
             <h1 className="brand-title">
               Apna<span>Pay</span>
             </h1>
-          </div>
+          </Link>
 
           {title && <h2 style={{ fontSize: compact ? '17px' : '20px', fontWeight: '600', color: '#FFFFFF', marginTop: compact ? '4px' : '10px' }}>{title}</h2>}
           {subtitle && <p className="auth-subtitle">{subtitle}</p>}

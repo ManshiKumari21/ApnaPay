@@ -76,13 +76,14 @@ app.get('/api/health', (req, res) => {
 // 4. ROUTE MOUNTING
 // ==========================================
 
-// Authentication Routes - mounted at /api/v1/auth, /auth, /api/auth
+// Authentication Routes - mounted at /api/v1/auth, /api/auth, /auth
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/auth', authRoutes);
 
-// Admin Auth Routes - mounted at /api/v1/admin/auth, /admin/auth
+// Admin Auth Routes - mounted at /api/v1/admin/auth, /api/admin/auth, /admin/auth
 app.use('/api/v1/admin/auth', adminAuthRoutes);
+app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/admin/auth', adminAuthRoutes);
 
 // User Profile & KYC Routes
@@ -116,7 +117,7 @@ app.use(['/recharge', '/api/recharge', '/api/v1/recharge'], rechargeRoutes);
 // Bill Payment Routes - mounted at /api/bills, /api/v1/bills and /bills
 app.use(['/api/bills', '/api/v1/bills', '/bills'], billPaymentRoutes);
 
-// Notification Routes - mounted at /api/notifications, /api/v1/notifications and /notifications
+// Notification Routes - mounted at /api/notifications, /api/v1/notifications, /notifications and /notification
 app.use(['/api/notifications', '/api/v1/notifications', '/notifications', '/api/notification', '/api/v1/notification', '/notification'], notificationRoutes);
 
 // Notification Preferences Routes - mounted at /api/notification-preferences, /api/v1/notification-preferences and /notification-preferences
@@ -146,7 +147,6 @@ app.use((err, req, res, next) => {
     }
     next(err);
 });
-
 
 // Global 404 handler
 app.use((req, res) => {

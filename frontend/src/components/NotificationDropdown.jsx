@@ -76,6 +76,8 @@ const NotificationDropdown = () => {
   // Fetch notifications
   const loadNotifications = async (status = filter, showSpinner = true) => {
     if (status === 'preferences') return;
+    const userToken = localStorage.getItem('apnapay_token');
+    if (!userToken) return;
     if (showSpinner) setLoading(true);
     try {
       const res = await notificationService.getNotifications({
@@ -97,6 +99,8 @@ const NotificationDropdown = () => {
 
   // Fetch notification preferences
   const loadPreferences = async () => {
+    const userToken = localStorage.getItem('apnapay_token');
+    if (!userToken) return;
     setLoading(true);
     try {
       const res = await notificationService.getPreferences();
@@ -118,11 +122,21 @@ const NotificationDropdown = () => {
     const handleFocus = () => {
       loadNotifications(filter, false);
     };
+    const handleToggle = () => {
+      setIsOpen((prev) => {
+        const next = !prev;
+        if (next) loadNotifications(filter, false);
+        return next;
+      });
+    };
+
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('toggle-alerts-dropdown', handleToggle);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('toggle-alerts-dropdown', handleToggle);
     };
   }, [filter]);
 

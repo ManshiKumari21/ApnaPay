@@ -16,15 +16,17 @@ const {
     verifyOtp
 } = require('../controllers/authController');
 
-// Register API
-router.post('/register', register);
-
-// Login APIs
-router.post('/login', login);
+// Customer OTP-Based Login APIs
 router.post('/login/lookup-phone', loginLookupPhone);
 router.post('/login/initiate', loginLookupPhone);
 router.post('/login/send-otp', loginSendOtp);
 router.post('/login/verify-otp', loginVerifyOtp);
+
+// Register API
+router.post('/register', register);
+
+// Login API (Supports both OTP and legacy password login)
+router.post('/login', login);
 
 // Refresh Token API
 router.post('/refresh', refreshToken);

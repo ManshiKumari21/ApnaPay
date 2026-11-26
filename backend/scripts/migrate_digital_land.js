@@ -49,6 +49,26 @@ async function runMigration() {
             await conn.query("ALTER TABLE land_orders ADD COLUMN updated_at timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() AFTER created_at");
             console.log('  -> Added updated_at to land_orders');
         }
+        if (!existingOrderCols.includes('approved_by')) {
+            await conn.query("ALTER TABLE land_orders ADD COLUMN approved_by bigint(20) unsigned DEFAULT NULL AFTER status");
+            console.log('  -> Added approved_by to land_orders');
+        }
+        if (!existingOrderCols.includes('approved_at')) {
+            await conn.query("ALTER TABLE land_orders ADD COLUMN approved_at timestamp NULL DEFAULT NULL AFTER approved_by");
+            console.log('  -> Added approved_at to land_orders');
+        }
+        if (!existingOrderCols.includes('rejected_by')) {
+            await conn.query("ALTER TABLE land_orders ADD COLUMN rejected_by bigint(20) unsigned DEFAULT NULL AFTER approved_at");
+            console.log('  -> Added rejected_by to land_orders');
+        }
+        if (!existingOrderCols.includes('rejected_at')) {
+            await conn.query("ALTER TABLE land_orders ADD COLUMN rejected_at timestamp NULL DEFAULT NULL AFTER rejected_by");
+            console.log('  -> Added rejected_at to land_orders');
+        }
+        if (!existingOrderCols.includes('rejection_reason')) {
+            await conn.query("ALTER TABLE land_orders ADD COLUMN rejection_reason varchar(255) DEFAULT NULL AFTER rejected_at");
+            console.log('  -> Added rejection_reason to land_orders');
+        }
 
         // 3. Update land_holdings table if columns missing
         console.log('Checking land_holdings table columns...');

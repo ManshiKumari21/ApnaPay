@@ -200,7 +200,11 @@ exports.sendOtp = async (req, res) => {
         // Delivery handling: Email OTP as primary channel
         let emailSendRes = null;
         if (rawEmail) {
-            emailSendRes = await sendOtpEmail(rawEmail, otp, purpose);
+            try {
+                emailSendRes = await sendOtpEmail(rawEmail, otp, purpose);
+            } catch (emailErr) {
+                console.warn('[Send OTP] sendOtpEmail notice:', emailErr.message);
+            }
         } else if (rawPhone) {
             if (smsService.isSmsConfigured()) {
                 await smsService.sendOtpSms({ phone: rawPhone, otp, purpose });
@@ -214,19 +218,11 @@ exports.sendOtp = async (req, res) => {
 
         const isPasswordResetPurpose = purpose === 'password_reset' || purpose === 'forgot_password';
 
-        let msg = isPasswordResetPurpose
-            ? 'If an account exists, a 6-digit OTP has been sent to your registered email address.'
-            : 'Verification code sent to your registered email.';
-
-        if (emailSendRes?.simulated || isDevMode()) {
-            msg = `Verification code sent to your registered email. (OTP: ${otp})`;
-        }
-
         const responsePayload = {
             success: true,
-            message: msg,
-            otp: (emailSendRes?.simulated || isDevMode()) ? otp : undefined,
-            devOtp: (emailSendRes?.simulated || isDevMode()) ? otp : undefined,
+            message: isPasswordResetPurpose
+                ? 'If an account exists, a 6-digit OTP has been sent to your registered email address.'
+                : 'Verification code sent to your registered email address. Please check your inbox.',
             expiresIn: OTP_EXPIRY_MINUTES * 60,
             cooldownRemaining: cooldownSeconds
         };
@@ -636,80 +632,112 @@ exports.loginSendOtp = async (req, res) => {
         const digits = rawPhone.replace(/\D/g, '');
         const cleanPhone = digits.length > 10 ? digits.slice(-10) : digits;
 
-        if (!cleanPhone || cleanPhone.length !== 10) {
+        if (!cleanPhone && !rawEmail) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide your registered mobile number or email address.'
+            });
+        }
+
+        if (cleanPhone && cleanPhone.length !== 10) {
             return res.status(400).json({
                 success: false,
                 message: 'A valid 10-digit registered mobile number is required.'
             });
         }
 
-        if (!rawEmail || !EMAIL_REGEX.test(rawEmail)) {
+        if (rawEmail && !EMAIL_REGEX.test(rawEmail)) {
             return res.status(400).json({
                 success: false,
-                message: 'Please enter a valid registered email address.'
+                message: 'Please enter a valid registered email address format.'
             });
         }
 
-        // Look up user by matching phone AND email together
-        let [users] = await db.execute(
-            `SELECT id, full_name, email, phone, status
-             FROM users
-             WHERE (phone = ? OR phone = ? OR phone = ?)
-               AND LOWER(email) = ?
-             LIMIT 1`,
-            [cleanPhone, `+91${cleanPhone}`, `91${cleanPhone}`, rawEmail]
-        );
+        let user = null;
 
-        let user = users[0];
+        if (cleanPhone && rawEmail) {
+            // Primary path: Match phone AND email together
+            const [users] = await db.execute(
+                `SELECT id, full_name, email, phone, status
+                 FROM users
+                 WHERE (phone = ? OR phone = ? OR phone = ?)
+                   AND LOWER(email) = ?
+                 LIMIT 1`,
+                [cleanPhone, `+91${cleanPhone}`, `91${cleanPhone}`, rawEmail]
+            );
+            user = users[0];
 
-        // If not found by phone and email together, check if exists by phone OR email
-        if (!user) {
-            const [byPhone] = await db.execute(
-                `SELECT id, full_name, email, phone, status FROM users WHERE phone = ? OR phone = ? OR phone = ? LIMIT 1`,
+            if (!user) {
+                // Diagnostic check for user-friendly error message
+                const [byPhone] = await db.execute(
+                    `SELECT id, full_name, email, phone, status FROM users WHERE phone = ? OR phone = ? OR phone = ? LIMIT 1`,
+                    [cleanPhone, `+91${cleanPhone}`, `91${cleanPhone}`]
+                );
+                const [byEmail] = await db.execute(
+                    `SELECT id, full_name, email, phone, status FROM users WHERE LOWER(email) = ? LIMIT 1`,
+                    [rawEmail]
+                );
+
+                if (!byPhone.length && !byEmail.length) {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'No registered account found with this mobile number and email. Please create an account.'
+                    });
+                }
+
+                // If user registered with phone and had null email, link this email
+                if (byPhone.length > 0 && !byPhone[0].email) {
+                    user = byPhone[0];
+                    user.email = rawEmail;
+                    await db.execute('UPDATE users SET email = ? WHERE id = ?', [rawEmail, user.id]);
+                } else if (byPhone.length > 0 && !byEmail.length) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Email address does not match this registered mobile number. Registered email is ${maskEmail(byPhone[0].email)}.`
+                    });
+                } else if (!byPhone.length && byEmail.length > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Mobile number does not match this registered email address.'
+                    });
+                } else {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'The entered phone number and email belong to different registered accounts.'
+                    });
+                }
+            }
+        } else if (cleanPhone) {
+            // Phone only lookup
+            const [users] = await db.execute(
+                `SELECT id, full_name, email, phone, status
+                 FROM users
+                 WHERE phone = ? OR phone = ? OR phone = ?
+                 LIMIT 1`,
                 [cleanPhone, `+91${cleanPhone}`, `91${cleanPhone}`]
             );
-            const [byEmail] = await db.execute(
-                `SELECT id, full_name, email, phone, status FROM users WHERE LOWER(email) = ? LIMIT 1`,
+            user = users[0];
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'No registered account found with this mobile number.'
+                });
+            }
+        } else if (rawEmail) {
+            // Email only lookup
+            const [users] = await db.execute(
+                `SELECT id, full_name, email, phone, status
+                 FROM users
+                 WHERE LOWER(email) = ?
+                 LIMIT 1`,
                 [rawEmail]
             );
-
-            if (byPhone.length > 0) {
-                user = byPhone[0];
-                if (!user.email || user.email.toLowerCase() !== rawEmail) {
-                    await db.execute('UPDATE users SET email = ? WHERE id = ?', [rawEmail, user.id]);
-                    user.email = rawEmail;
-                }
-            } else if (byEmail.length > 0) {
-                user = byEmail[0];
-                if (!user.phone || !user.phone.endsWith(cleanPhone)) {
-                    await db.execute('UPDATE users SET phone = ? WHERE id = ?', [cleanPhone, user.id]);
-                    user.phone = cleanPhone;
-                }
-            } else {
-                // New user - auto create customer account seamlessly
-                const defaultName = rawEmail.split('@')[0];
-                const dummyPassword = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
-                const [insertRes] = await db.execute(
-                    `INSERT INTO users (full_name, email, phone, password_hash, email_verified_at, status)
-                     VALUES (?, ?, ?, ?, NOW(), 'active')`,
-                    [defaultName, rawEmail, cleanPhone, dummyPassword]
-                );
-                const newId = insertRes.insertId;
-                try {
-                    await db.execute(
-                        `INSERT INTO wallets (user_id, currency, available_balance, status)
-                         VALUES (?, 'INR', 0.0000, 'active')
-                         ON DUPLICATE KEY UPDATE status = 'active'`,
-                        [newId]
-                    );
-                } catch (_) {}
-                user = {
-                    id: newId,
-                    full_name: defaultName,
-                    email: rawEmail,
-                    phone: cleanPhone,
-                    status: 'active'
-                };
+            user = users[0];
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'No registered account found with this email address.'
+                });
             }
         }
 
@@ -757,34 +785,57 @@ exports.loginSendOtp = async (req, res) => {
             `INSERT INTO otp_verifications
              (user_id, phone, email, otp_hash, purpose, expires_at, attempts)
              VALUES (?, ?, ?, ?, 'CUSTOMER_LOGIN', ?, 0)`,
-            [user.id, cleanPhone, rawEmail, otpHash, expiresAt]
+            [user.id, cleanPhone, user.email, otpHash, expiresAt]
         );
 
         // Masked representations
-        const maskedEmail = maskEmail(rawEmail);
+        const maskedEmail = maskEmail(user.email);
         const phoneInfo = smsService.maskPhone(cleanPhone);
 
-        // Dispatch OTP via Nodemailer to the entered email address
-        const emailSendResult = await sendOtpEmail(rawEmail, otp, 'login');
-        let deliveryMessage = `Verification code sent to your registered email (${maskedEmail}).`;
+        // Dispatch OTP via Email (or SMS if configured & requested)
+        let activeDeliveryMethod = deliveryMethod;
+        let deliveryMessage = '';
+        let emailSendRes = null;
 
-        if (emailSendResult?.simulated || isDevMode()) {
-            deliveryMessage = `Verification code sent to ${maskedEmail}. (OTP: ${otp})`;
+        if (activeDeliveryMethod === 'sms' && smsService.isSmsConfigured()) {
+            const smsRes = await smsService.sendOtpSms({
+                phone: user.phone,
+                otp,
+                purpose: 'login'
+            });
+            if (smsRes.success) {
+                deliveryMessage = `Verification code sent via SMS to mobile ending in ${phoneInfo.last4}.`;
+            } else {
+                // Fallback to email
+                try {
+                    emailSendRes = await sendOtpEmail(user.email, otp, 'login');
+                } catch (emailErr) {
+                    console.warn('[Login Send OTP] sendOtpEmail warning:', emailErr.message);
+                }
+                activeDeliveryMethod = 'email';
+                deliveryMessage = `Verification code sent to your registered email (${maskedEmail}).`;
+            }
+        } else {
+            // High-speed Email dispatch
+            try {
+                emailSendRes = await sendOtpEmail(user.email, otp, 'login');
+            } catch (emailErr) {
+                console.warn('[Login Send OTP] sendOtpEmail warning:', emailErr.message);
+            }
+            activeDeliveryMethod = 'email';
+            deliveryMessage = `Verification code sent to your registered email (${maskedEmail}). Please check your inbox.`;
         }
 
         return res.status(200).json({
             success: true,
             message: deliveryMessage,
-            otp: (emailSendResult?.simulated || isDevMode()) ? otp : undefined,
             data: {
                 phone: cleanPhone,
                 maskedPhone: phoneInfo.masked,
                 registeredMobileLast4: phoneInfo.last4,
-                email: rawEmail,
+                email: user.email,
                 maskedEmail,
-                deliveryMethod: 'email',
-                otp: (emailSendResult?.simulated || isDevMode()) ? otp : undefined,
-                devOtp: (emailSendResult?.simulated || isDevMode()) ? otp : undefined,
+                deliveryMethod: activeDeliveryMethod,
                 expiresIn: OTP_EXPIRY_MINUTES * 60,
                 resendCooldown: OTP_RESEND_COOLDOWN_SECONDS
             }
@@ -810,17 +861,24 @@ exports.loginVerifyOtp = async (req, res) => {
         const digits = rawPhone.replace(/\D/g, '');
         const cleanPhone = digits.length > 10 ? digits.slice(-10) : digits;
 
-        if (!cleanPhone || cleanPhone.length !== 10) {
+        if (!cleanPhone && !rawEmail) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide your registered mobile number or email address.'
+            });
+        }
+
+        if (cleanPhone && cleanPhone.length !== 10) {
             return res.status(400).json({
                 success: false,
                 message: 'A valid 10-digit mobile number is required.'
             });
         }
 
-        if (!rawEmail || !EMAIL_REGEX.test(rawEmail)) {
+        if (rawEmail && !EMAIL_REGEX.test(rawEmail)) {
             return res.status(400).json({
                 success: false,
-                message: 'A valid registered email address is required.'
+                message: 'A valid registered email address format is required.'
             });
         }
 
@@ -831,46 +889,51 @@ exports.loginVerifyOtp = async (req, res) => {
             });
         }
 
-        // Look up user by matching phone AND email together
-        let [users] = await db.execute(
-            `SELECT id, full_name, email, phone, status
-             FROM users
-             WHERE (phone = ? OR phone = ? OR phone = ?)
-               AND LOWER(email) = ?
-             LIMIT 1`,
-            [cleanPhone, `+91${cleanPhone}`, `91${cleanPhone}`, rawEmail]
-        );
+        let user = null;
 
-        let user = users[0];
-
-        if (!user) {
-            const [byEmail] = await db.execute(
+        if (cleanPhone && rawEmail) {
+            const [users] = await db.execute(
                 `SELECT id, full_name, email, phone, status
                  FROM users
-                 WHERE email = ?
+                 WHERE (phone = ? OR phone = ? OR phone = ?)
+                   AND LOWER(email) = ?
                  LIMIT 1`,
-                [rawEmail]
+                [cleanPhone, `+91${cleanPhone}`, `91${cleanPhone}`, rawEmail]
             );
-            if (byEmail.length > 0) {
-                user = byEmail[0];
-            } else {
+            user = users[0];
+            if (!user) {
                 const [byPhone] = await db.execute(
-                    `SELECT id, full_name, email, phone, status
-                     FROM users
-                     WHERE phone = ? OR phone = ? OR phone = ?
-                     LIMIT 1`,
+                    `SELECT id, full_name, email, phone, status FROM users WHERE phone = ? OR phone = ? OR phone = ? LIMIT 1`,
                     [cleanPhone, `+91${cleanPhone}`, `91${cleanPhone}`]
                 );
-                if (byPhone.length > 0) {
+                if (byPhone.length > 0 && (!byPhone[0].email || byPhone[0].email.toLowerCase() === rawEmail)) {
                     user = byPhone[0];
                 }
             }
+        } else if (cleanPhone) {
+            const [users] = await db.execute(
+                `SELECT id, full_name, email, phone, status
+                 FROM users
+                 WHERE phone = ? OR phone = ? OR phone = ?
+                 LIMIT 1`,
+                [cleanPhone, `+91${cleanPhone}`, `91${cleanPhone}`]
+            );
+            user = users[0];
+        } else if (rawEmail) {
+            const [users] = await db.execute(
+                `SELECT id, full_name, email, phone, status
+                 FROM users
+                 WHERE LOWER(email) = ?
+                 LIMIT 1`,
+                [rawEmail]
+            );
+            user = users[0];
         }
 
         if (!user) {
             return res.status(404).json({
                 success: false,
-                message: 'Customer account not found.'
+                message: 'Customer account not found or phone and email do not match.'
             });
         }
 
@@ -885,9 +948,9 @@ exports.loginVerifyOtp = async (req, res) => {
         const [otpRecords] = await db.execute(
             `SELECT id, otp_hash, attempts, expires_at
              FROM otp_verifications
-             WHERE (user_id = ? OR email = ? OR phone = ?) AND purpose IN ('CUSTOMER_LOGIN', 'login') AND verified_at IS NULL
+             WHERE user_id = ? AND purpose IN ('CUSTOMER_LOGIN', 'login') AND verified_at IS NULL
              ORDER BY id DESC LIMIT 1`,
-            [user.id, rawEmail, cleanPhone]
+            [user.id]
         );
 
         if (otpRecords.length === 0) {
@@ -1327,18 +1390,12 @@ exports.forgotPassword = async (req, res) => {
         );
 
         // Send OTP email via Nodemailer Gmail SMTP
-        const emailRes = await sendOtpEmail(user.email, otp, 'password_reset');
+        await sendOtpEmail(user.email, otp, 'password_reset');
 
-        let responseMsg = genericMessage;
-        if (emailRes?.simulated || isDevMode()) {
-            responseMsg = `${genericMessage} (OTP: ${otp})`;
-        }
-
+        // Security: Never expose OTP, devOtp or reset tokens in API responses
         return res.status(200).json({
             success: true,
-            message: responseMsg,
-            otp: (emailRes?.simulated || isDevMode()) ? otp : undefined,
-            devOtp: (emailRes?.simulated || isDevMode()) ? otp : undefined
+            message: genericMessage
         });
 
     } catch (error) {
@@ -1468,4 +1525,4 @@ exports.resetPassword = async (req, res) => {
             connection.release();
         }
     }
-}
+};

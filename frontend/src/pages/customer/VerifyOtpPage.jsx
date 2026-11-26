@@ -97,9 +97,9 @@ const VerifyOtpPage = () => {
         purpose
       });
 
-      // Set input boxes on resend
-      if (res?.devOtp || res?.otp) {
-        setOtp(String(res.devOtp || res.otp));
+      const devOtp = res?.devOtp || res?.otp || res?.data?.devOtp || res?.data?.otp;
+      if (devOtp) {
+        setOtp(String(devOtp));
       } else {
         setOtp('');
       }
@@ -151,6 +151,8 @@ const VerifyOtpPage = () => {
 
         navigate('/login', {
           state: {
+            phone: phone,
+            email: email,
             successMessage: 'Account created successfully! Please sign in with your registered phone number and email.'
           }
         });

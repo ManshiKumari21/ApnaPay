@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/AuthLayout';
 import FormInput from '../../components/FormInput';
 import PasswordInput from '../../components/PasswordInput';
 import AuthButton from '../../components/AuthButton';
 import { UserIcon, MailIcon, PhoneIcon, ArrowRightIcon } from '../../components/Icons';
+import { useAuth } from '../../context/AuthContext';
 import userAuthService from '../../services/userAuthService';
 
 const SignupPage = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate('/app', { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -45,9 +54,10 @@ const SignupPage = () => {
       errs.email = 'Please enter a valid email address.';
     }
 
-    const cleanPhone = formData.phone.replace(/[\s-]/g, '');
-    if (!cleanPhone || !/^\+?[0-9]{10,15}$/.test(cleanPhone)) {
-      errs.phone = 'Please enter a valid 10-15 digit phone number.';
+    const cleanDigits = formData.phone.replace(/\D/g, '');
+    const cleanPhone = cleanDigits.length > 10 ? cleanDigits.slice(-10) : cleanDigits;
+    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      errs.phone = 'Please enter a valid 10-digit Indian mobile number.';
     }
 
     if (!formData.password || formData.password.length < 8) {
@@ -69,19 +79,23 @@ const SignupPage = () => {
     setIsSubmitting(true);
     setGlobalError('');
 
+    const cleanDigits = formData.phone.replace(/\D/g, '');
+    const cleanPhone = cleanDigits.length > 10 ? cleanDigits.slice(-10) : cleanDigits;
+    const cleanEmail = formData.email.trim().toLowerCase();
+
     try {
       // Step 1: Send OTP to user's email for registration verification
       await userAuthService.sendOtp({
-        email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim(),
+        email: cleanEmail,
+        phone: cleanPhone,
         purpose: 'email_verification'
       });
 
-      // Navigate to OTP verification page with user details (no devOtp exposed)
+      // Navigate to OTP verification page with user details
       navigate('/verify-otp', {
         state: {
-          email: formData.email.trim().toLowerCase(),
-          phone: formData.phone.trim(),
+          email: cleanEmail,
+          phone: cleanPhone,
           fullName: formData.fullName.trim(),
           password: formData.password,
           purpose: 'email_verification',
@@ -98,7 +112,8 @@ const SignupPage = () => {
 
   const isFullNameValid = formData.fullName.trim().length >= 2;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim());
-  const cleanPhone = formData.phone.replace(/[\s-]/g, '');
+  const cleanDigits = formData.phone.replace(/\D/g, '');
+  const cleanPhone = cleanDigits.length > 10 ? cleanDigits.slice(-10) : cleanDigits;
   const isPhoneValid = cleanPhone.length === 10 && /^[6-9]\d{9}$/.test(cleanPhone);
   const isPasswordValid = formData.password.length >= 8;
 

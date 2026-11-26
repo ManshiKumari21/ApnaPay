@@ -44,11 +44,11 @@ const BackButton = ({
       onClick={handleBack}
       className={`back-button ${className}`}
       style={style}
-      aria-label={label}
+      aria-label={label || 'Back'}
       title="Go back to previous page"
     >
-      <ArrowLeftIcon size={16} />
-      <span>{label}</span>
+      <ArrowLeftIcon size={18} />
+      <span className="back-button-label">{label}</span>
     </button>
   );
 };

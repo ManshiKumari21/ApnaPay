@@ -203,7 +203,7 @@ const AdminDashboardPage = () => {
           </div>
           <span style={{ fontSize: '12px', color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <CheckCircleIcon size={14} />
-            100% Endpoints Operational
+            Subsystems Monitored
           </span>
         </div>
 

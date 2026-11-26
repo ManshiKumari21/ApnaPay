@@ -26,7 +26,8 @@ import {
   QrCodeIcon,
   SmartphoneIcon,
   AlertCircleIcon,
-  LayersIcon
+  LayersIcon,
+  GridIcon
 } from '../Icons';
 import {
   TrendingUp,
@@ -56,6 +57,8 @@ const DashboardLayout = ({
 
   useEffect(() => {
     let isMounted = true;
+    const userToken = localStorage.getItem('apnapay_token');
+    if (!userToken) return;
     walletService.getBalance()
       .then((res) => {
         if (isMounted && res?.data?.formattedBalance) {
@@ -80,6 +83,13 @@ const DashboardLayout = ({
       label: 'Dashboard',
       icon: HomeIcon,
       exact: true
+    },
+    {
+      to: '/app/services',
+      label: 'All Services',
+      icon: GridIcon,
+      badge: 'Hub',
+      badgeColor: 'blue'
     },
     {
       to: '/app/wallet',
@@ -170,6 +180,7 @@ const DashboardLayout = ({
   ];
 
   const searchableServices = [
+    { title: 'All Services', path: '/app/services', desc: 'Browse all recharge, billers, banking & investment services' },
     { title: 'Wallet & Ledger', path: '/app/wallet', desc: 'Add money, view escrow ledger balance' },
     { title: 'Money Transfers', path: '/app/transfers', desc: 'Instant peer-to-peer transfers & bank payouts' },
     { title: 'Payments', path: '/app/payments', desc: 'Manage checkout orders, cards & gateway logs' },

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { AlertCircleIcon, CheckCircleIcon } from './Icons';
 
-const FormInput = ({
+const FormInput = forwardRef(({
   label,
   id,
   name,
@@ -18,7 +18,7 @@ const FormInput = ({
   autoComplete,
   className = '',
   ...rest
-}) => {
+}, ref) => {
   return (
     <div className={`form-group ${className}`}>
       {label && (
@@ -41,6 +41,7 @@ const FormInput = ({
           </div>
         )}
         <input
+          ref={ref}
           id={id || name}
           name={name}
           type={type}
@@ -72,6 +73,8 @@ const FormInput = ({
       )}
     </div>
   );
-};
+});
+
+FormInput.displayName = 'FormInput';
 
 export default FormInput;

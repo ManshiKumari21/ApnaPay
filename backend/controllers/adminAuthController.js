@@ -303,7 +303,7 @@ exports.sendOtp = async (req, res) => {
 
         const otp = crypto.randomInt(100000, 1000000).toString();
 
-        const otpHash = await bcrypt.hash(otp, 12);
+        const otpHash = await bcrypt.hash(otp, 10);
 
         const expiresAt = new Date(
             Date.now() + 5 * 60 * 1000
@@ -331,21 +331,18 @@ exports.sendOtp = async (req, res) => {
             ]
         );
 
-        const emailSendRes = await sendOtpEmail(email, otp, purpose);
-
-        let successMsg = (purpose === 'password_reset' || purpose === 'forgot_password')
-            ? 'If an account exists, a 6-digit OTP has been sent to your registered email address.'
-            : 'OTP sent successfully to your registered admin email.';
-
-        if (emailSendRes?.simulated || process.env.NODE_ENV === 'development') {
-            successMsg = `OTP sent to ${email}. (OTP: ${otp})`;
+        let emailSendRes = null;
+        try {
+            emailSendRes = await sendOtpEmail(email, otp, purpose);
+        } catch (emailErr) {
+            console.warn('[Admin Send OTP] sendOtpEmail warning:', emailErr.message);
         }
 
         const response = {
             success: true,
-            message: successMsg,
-            otp: (emailSendRes?.simulated || process.env.NODE_ENV === 'development') ? otp : undefined,
-            devOtp: (emailSendRes?.simulated || process.env.NODE_ENV === 'development') ? otp : undefined,
+            message: (purpose === 'password_reset' || purpose === 'forgot_password')
+                ? 'If an account exists, a 6-digit OTP has been sent to your registered email address.'
+                : 'OTP sent successfully to your registered admin email address. Please check your inbox.',
             expiresIn: 300
         };
 
@@ -765,7 +762,7 @@ exports.forgotPassword = async (req, res) => {
         }
 
         const otp = crypto.randomInt(100000, 1000000).toString();
-        const otpHash = await bcrypt.hash(otp, 12);
+        const otpHash = await bcrypt.hash(otp, 10);
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
         await db.execute(

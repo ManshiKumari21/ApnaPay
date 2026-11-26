@@ -4,6 +4,10 @@ const authMiddleware = require('../middleware/authMiddleware');
 const adminAuthMiddleware = require('../middleware/adminAuthMiddleware');
 const landController = require('../controllers/landController');
 
+// ==========================================
+// USER DIGITAL LAND ROUTES
+// ==========================================
+
 // 1. GET /api/land/projects - Get all available land projects (Public)
 router.get('/projects', landController.getProjects);
 
@@ -29,20 +33,23 @@ router.get('/transactions', authMiddleware, landController.getTransactions);
 router.get('/valuations', landController.getValuations);
 
 // ==========================================
-// ADMIN LAND ORDER OPERATIONS (Protected)
+// ADMIN DIGITAL LAND MANAGEMENT ROUTES
+// (Protected with adminAuthMiddleware)
 // ==========================================
 
-// 9. GET /api/land/admin/orders - Admin Land Orders & Dashboard Counts
+// 9. GET /api/land/admin/orders - Admin Land Orders with Dashboard Counts
 router.get('/admin/orders', adminAuthMiddleware, landController.getAdminOrders);
 
 // 10. GET /api/land/admin/orders/:id - Admin Single Order Details
 router.get('/admin/orders/:id', adminAuthMiddleware, landController.getAdminOrderById);
 
-// 11. POST /api/land/admin/orders/:id/approve - Approve Land Order
+// 11. POST/PUT /api/land/admin/orders/:id/approve - Approve Land Order
 router.post('/admin/orders/:id/approve', adminAuthMiddleware, landController.approveOrder);
+router.put('/admin/orders/:id/approve', adminAuthMiddleware, landController.approveOrder);
 
-// 12. POST /api/land/admin/orders/:id/reject - Reject Land Order
+// 12. POST/PUT /api/land/admin/orders/:id/reject - Reject Land Order
 router.post('/admin/orders/:id/reject', adminAuthMiddleware, landController.rejectOrder);
+router.put('/admin/orders/:id/reject', adminAuthMiddleware, landController.rejectOrder);
 
 module.exports = router;
 
